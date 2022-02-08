@@ -1,0 +1,19 @@
+[package]
+name = "libpf-rs"
+version = "0.1.0"
+edition = "2021"
+description = "Rust library for building BPF packet filters"
+authors = ["Miguel Guarniz <mi9uel9@gmail.com>"]
+license = "LGPL-2.1 OR BSD-2-Clause"
+keywords = ["bpf", "ebpf", "libpf", "pf"]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.53"
+thiserror = "1.0.30"
+tempfile = "3.3.0"
+libbpf-sys = { version = "0.6.0-1" }
+ctrlc = { version = "3.0", features = ["termination"] }
+bincode2 = "2.0.1"
+serde = { version = "1.0", features = ["derive"] }
+http = "0.2.6"

@@ -1,0 +1,2 @@
+block on $dev_var proto udp from $port_ip to any
+block on $dev_var2 proto udp from $port_ip2 to any
