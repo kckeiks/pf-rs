@@ -1,37 +1,3 @@
-/*
-    let filter = Filter::new();
-    filter.add_rule(
-    RuleBuilder::pass()
-    .proto("udp")
-    .from("129.4.3.1")
-    .to("134.5.2.1")
-    );
-
-    builder.action("pass")
-    .proto("udp")
-    .from("129.4.3.1")
-    .to("134.5.2.1")
-
-    RuleBuilder::action("pass")
-    .proto("udp")
-    .from_any()
-    .any_port()
-    .to("134.5.2.1")
-
-    Rule::action("pass")
-    .proto("udp")?
-    .from("129.4.3.1:0")
-    .to("1234")
-    .new()
-
-    Rule::pass()
-    .udp()
-    .from_port(["1234", "456"])
-    .to(["a")
-    .any_port()
-    .new()
- */
-use serde::{Serialize, Deserialize};
 use std::net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::result::{IntoIter, Iter};
 use std::str::FromStr;
@@ -47,11 +13,6 @@ enum Action {
 enum Proto {
     UDP,
     TCP,
-}
-
-enum IP {
-    V4(u32),
-    V6(u128)
 }
 
 #[derive(Debug)]
@@ -230,16 +191,4 @@ impl Builder {
         }
     }
 
-}
-
-// TODO: remove this
-fn ip_from_str<T: AsRef<str>>(addrs: T) -> Result<IP, AddrParseError> {
-    match IpAddr::from_str(addrs.as_ref())? {
-        IpAddr::V4(ip) => {
-            Ok(IP::V4(ip.into()))
-        },
-        IpAddr::V6(ip) => {
-            Ok(IP::V6(ip.into()))
-        }
-    }
 }
