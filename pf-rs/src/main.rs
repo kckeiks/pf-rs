@@ -4,7 +4,7 @@ mod generator;
 mod lexer;
 mod parser;
 
-use bpfpf_lib;
+use libpf_rs;
 
 use generator::Generator;
 use lexer::Lexer;
@@ -23,5 +23,5 @@ fn main() {
     //     }
     //     Err(err) => panic!("{}", err),
     // }
-    bpfpf_lib::load_filter();
+    libpf_rs::load_filter();
 }

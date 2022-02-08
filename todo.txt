@@ -1,4 +1,4 @@
-[] add bpfpf-lib api
-[] add bpfpf generator
+[] add libpf api
+[] add pf generator
 [] add command for pbfpf
 [] add support for ports
