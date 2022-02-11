@@ -14,6 +14,7 @@ mod error;
 mod filter;
 mod ip;
 mod bpfcode;
+mod rule;
 
 const MAX_RULE_PER_FILTER: usize = 20;
 
