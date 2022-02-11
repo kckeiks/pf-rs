@@ -13,6 +13,7 @@ mod compile;
 mod error;
 mod filter;
 mod ip;
+mod bpfcode;
 
 const MAX_RULE_PER_FILTER: usize = 20;
 

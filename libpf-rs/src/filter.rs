@@ -13,22 +13,41 @@ enum Action {
 enum Proto {
     UDP,
     TCP,
+    Any,
 }
 
 #[derive(Debug)]
 struct Filter {
-    rules: Vec<Rule>,
+    rules: Option<Vec<Rule>>,
 }
+
+impl Filter {
+    pub fn new() -> Self {
+        Filter { rules: Some(Vec::new()) }
+    }
+
+    pub fn add_rule(&mut self, rule: Rule) {
+        self.rules.as_mut().map(|rules| rules.push(rule));
+    }
+
+    // pub fn generate(rules: Vec<Rule>) -> Result<(), ()> {
+    //
+    // }
+}
+
+
 
 #[derive(Default, Debug)]
 struct RawRule {
-    action: i32,
+    action: u32,
+    quick: u32,
+    proto: u32,
+    sport: u16,
+    dport: u16,
     saddr4: u32,
     daddr4: u32,
     saddr6: u128,
     daddr6: u128,
-    sport: u16,
-    dport: u16,
 }
 
 #[derive(Debug)]
@@ -41,6 +60,7 @@ struct Rule {
 #[derive(PartialEq, Debug)]
 struct Parts {
     action: Action,
+    quick: bool,
     proto: Proto,
     saddr: Option<SocketAddr>,
     daddr: Option<SocketAddr>
@@ -50,7 +70,8 @@ impl Default for Parts {
     fn default() -> Self {
         Parts {
             action: Action::Block,
-            proto: Proto::TCP,
+            quick: false,
+            proto: Proto::Any,
             saddr: None,
             daddr: None,
         }
@@ -76,6 +97,13 @@ impl Builder {
     pub fn drop(self) -> Builder {
         self.and_then(move | mut parts| {
             parts.action = Action::Block;
+            Ok(parts)
+        })
+    }
+
+    pub fn quick(self) -> Builder {
+        self.and_then(| mut parts | {
+            parts.quick = true;
             Ok(parts)
         })
     }
@@ -142,8 +170,10 @@ impl Builder {
             let mut raw_rule = RawRule::default();
 
             let mut is_ipv6 = false;
+
             match (&parts.saddr, &parts.daddr) {
                 (Some(s), Some(d)) => {
+                    // if we have src and dst then they should be of the same ip version
                     if s.is_ipv6() != d.is_ipv6() {
                         return Err(());
                     }
@@ -175,6 +205,17 @@ impl Builder {
                 Action::Block => raw_rule.action = 0,
                 Action::Pass => raw_rule.action = 1,
             }
+
+            raw_rule.quick = match parts.quick {
+                false => 0,
+                true => 1,
+            };
+
+            raw_rule.proto = match &parts.proto {
+                Proto::TCP => 6,
+                Proto::UDP => 17,
+                Proto::Any => 0,
+            };
 
             Ok(Rule{
                 is_ipv6,
