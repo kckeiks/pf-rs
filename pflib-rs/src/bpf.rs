@@ -102,10 +102,10 @@ impl Loader {
         Ok(obj)
     }
 
-    pub fn update_map<T: AsRef<str>>(&mut self, name: T, key: &[u8], value: &[u8], map: u64) -> Result<()> {
+    pub fn update_map<T: AsRef<str>>(&mut self, name: T, key: &[u8], value: &[u8], flags: u64) -> Result<()> {
         match self.maps.get_mut(name.as_ref()) {
             Some(m) => {
-                m.update_map(key, value, map)
+                m.update_map(key, value, flags)
             }
             _ => bail!("unknown map")
         }
@@ -166,7 +166,7 @@ impl BPFMap {
         };
 
         if res < 0 {
-            bail!("failed to update the map");
+            bail!("failed to update the map {}", res);
         } else {
             Ok(())
         }

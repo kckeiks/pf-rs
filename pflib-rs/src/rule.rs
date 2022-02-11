@@ -2,6 +2,14 @@ use std::net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAdd
 use std::result::{IntoIter, Iter};
 use std::str::FromStr;
 use crate::ip::{ToSockAddr, ToIpAddr};
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug)]
+pub(crate) enum Proto {
+    UDP,
+    TCP,
+    Any,
+}
 
 #[derive(Debug)]
 pub enum Action {
@@ -9,20 +17,8 @@ pub enum Action {
     Block
 }
 
-#[derive(Debug)]
-enum Proto {
-    UDP,
-    TCP,
-    Any,
-}
-
-#[derive(Debug)]
-pub struct DefaultRule {
-    action: Action
-}
-
-#[derive(Default, Debug)]
-struct SerRule {
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Debug, Default)]
+pub(crate) struct RawRule {
     action: u32,
     quick: u32,
     proto: u32,
@@ -35,15 +31,22 @@ struct SerRule {
 }
 
 #[derive(Debug)]
-enum InnerRule {
-    DefaultRule(DefaultRule),
-    IPv4Rule(SerRule),
-    IPv6Rule(SerRule),
+pub(crate) enum InnerRule {
+    DefaultRule(Action),
+    IPv4Rule(RawRule),
+    IPv6Rule(RawRule),
 }
 
 #[derive(Debug)]
 pub struct Rule {
     inner: InnerRule
+}
+
+impl Rule {
+    // TODO: need at least rust 1.18
+    pub(crate) fn read_rule(self) -> InnerRule {
+        self.inner
+    }
 }
 
 #[derive(Debug)]
@@ -58,7 +61,7 @@ struct Parts {
 impl Default for Parts {
     fn default() -> Self {
         Parts {
-            action: Action::Block,
+            action: Action::Pass,
             quick: false,
             proto: Proto::Any,
             saddr: None,
@@ -159,9 +162,7 @@ impl Builder {
     pub fn pass_all(self) -> Result<Rule, ()> {
         self.inner.and_then(| _ | {
             Ok(Rule {
-                inner: InnerRule::DefaultRule(
-                    DefaultRule{ action: Action::Pass }
-                )
+                inner: InnerRule::DefaultRule(Action::Pass)
             })
         })
     }
@@ -169,16 +170,14 @@ impl Builder {
     pub fn block_all(self) -> Result<Rule, ()> {
         self.inner.and_then(| _ | {
             Ok(Rule {
-                inner: InnerRule::DefaultRule(
-                    DefaultRule{ action: Action::Block }
-                )
+                inner: InnerRule::DefaultRule(Action::Block)
             })
         })
     }
 
     pub fn build(self) -> Result<Rule, ()> {
         self.inner.and_then(| parts | {
-            let mut raw_rule = SerRule::default();
+            let mut raw_rule = RawRule::default();
 
             let mut is_ipv6 = false;
 
@@ -192,29 +191,33 @@ impl Builder {
                 }
                 (Some(s), None) => is_ipv6 = s.is_ipv6(),
                 (None, Some(d)) => is_ipv6 = d.is_ipv6(),
-                (None, None) => is_ipv6 = false,
+                (None, None) => return Err(()), // TODO: not allowed, direct them to use pass/block all
             }
 
             if let Some(SocketAddr::V4(a)) = parts.saddr {
-                raw_rule.saddr4 = (*a.ip()).into();
-                raw_rule.sport = a.port();
+                let addr: u32 = (*a.ip()).into();
+                raw_rule.saddr4 = addr.to_be();
+                raw_rule.sport = a.port().to_be();
             }
             if let Some(SocketAddr::V4(a)) = parts.daddr {
-                raw_rule.daddr4 = (*a.ip()).into();
-                raw_rule.dport = a.port();
+                let addr: u32 = (*a.ip()).into();
+                raw_rule.daddr4 = addr.to_be();
+                raw_rule.dport = a.port().to_be();
             }
             if let Some(SocketAddr::V6(a)) = parts.saddr {
-                raw_rule.saddr6 = (*a.ip()).into();
-                raw_rule.sport = a.port();
+                let addr: u128 = (*a.ip()).into();
+                raw_rule.saddr6 = addr.to_be();
+                raw_rule.sport = a.port().to_be();
             }
             if let Some(SocketAddr::V6(a)) = parts.daddr {
-                raw_rule.daddr6 = (*a.ip()).into();
-                raw_rule.dport = a.port();
+                let addr: u128 = (*a.ip()).into();
+                raw_rule.daddr6 =  addr.to_be();
+                raw_rule.dport = a.port().to_be();
             }
 
             match parts.action {
-                Action::Block => raw_rule.action = 0,
-                Action::Pass => raw_rule.action = 1,
+                Action::Block => raw_rule.action = 1,
+                Action::Pass => raw_rule.action = 2,
             }
 
             raw_rule.quick = match parts.quick {

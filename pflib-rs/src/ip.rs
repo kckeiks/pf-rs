@@ -9,7 +9,7 @@ pub trait ToIpAddr {
     fn to_ip_addr(&self) -> Result<IpAddr, AddrParseError>;
 }
 
-impl ToIpAddr for str {
+impl ToIpAddr for &str {
     fn to_ip_addr(&self) -> Result<IpAddr, AddrParseError> {
         IpAddr::from_str(self)
     }
@@ -21,7 +21,7 @@ impl ToIpAddr for IpAddr {
     }
 }
 
-impl ToSockAddr for str {
+impl ToSockAddr for &str {
     fn to_sock_addr(&self) -> Result<SocketAddr, AddrParseError> {
         SocketAddr::from_str(self)
     }
