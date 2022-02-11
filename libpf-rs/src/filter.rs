@@ -18,12 +18,13 @@ enum Proto {
 
 #[derive(Debug)]
 struct Filter {
+    default_act: Action,
     rules: Option<Vec<Rule>>,
 }
 
 impl Filter {
     pub fn new() -> Self {
-        Filter { rules: Some(Vec::new()) }
+        Filter { default_act: Action::Pass, rules: Some(Vec::new()) }
     }
 
     pub fn add_rule(&mut self, rule: Rule) {
@@ -52,6 +53,7 @@ struct RawRule {
 
 #[derive(Debug)]
 struct Rule {
+    default_policy: Option<Action>,
     is_ipv6: bool,
     proto: Proto,
     rule: RawRule
@@ -165,6 +167,29 @@ impl Builder {
         })
     }
 
+
+    pub fn pass_all(self) -> Result<Rule, ()> {
+        self.inner.and_then(| _ | {
+            Ok(Rule {
+                default_policy: Some(Action::Pass),
+                is_ipv6: false,
+                proto: Proto::Any,
+                rule: RawRule::default()
+            })
+        })
+    }
+
+    pub fn block_all(self) -> Result<Rule, ()> {
+        self.inner.and_then(| _ | {
+            Ok(Rule {
+                default_policy: Some(Action::Block),
+                is_ipv6: false,
+                proto: Proto::Any,
+                rule: RawRule::default()
+            })
+        })
+    }
+
     pub fn build(self) -> Result<Rule, ()> {
         self.inner.and_then(| parts | {
             let mut raw_rule = RawRule::default();
@@ -219,6 +244,7 @@ impl Builder {
 
             Ok(Rule{
                 is_ipv6,
+                default_policy: None,
                 proto: parts.proto,
                 rule : raw_rule
             })
