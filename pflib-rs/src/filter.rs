@@ -36,10 +36,12 @@ impl Filter {
     // }
 }
 
-
+pub struct DefaultRule {
+    action: Action
+}
 
 #[derive(Default, Debug)]
-struct RawRule {
+struct SerRule {
     action: u32,
     quick: u32,
     proto: u32,
@@ -51,12 +53,14 @@ struct RawRule {
     daddr6: u128,
 }
 
-#[derive(Debug)]
-struct Rule {
-    default_policy: Option<Action>,
-    is_ipv6: bool,
-    proto: Proto,
-    rule: RawRule
+enum InnerRule {
+    DefaultRule(DefaultRule),
+    IPv4Rule(SerRule),
+    IPv6Rule(SerRule),
+}
+
+pub struct Rule {
+    inner: InnerRule
 }
 
 #[derive(PartialEq, Debug)]
@@ -171,10 +175,9 @@ impl Builder {
     pub fn pass_all(self) -> Result<Rule, ()> {
         self.inner.and_then(| _ | {
             Ok(Rule {
-                default_policy: Some(Action::Pass),
-                is_ipv6: false,
-                proto: Proto::Any,
-                rule: RawRule::default()
+                inner: InnerRule::DefaultRule(
+                    DefaultRule{ action: Action::Pass }
+                )
             })
         })
     }
@@ -182,17 +185,16 @@ impl Builder {
     pub fn block_all(self) -> Result<Rule, ()> {
         self.inner.and_then(| _ | {
             Ok(Rule {
-                default_policy: Some(Action::Block),
-                is_ipv6: false,
-                proto: Proto::Any,
-                rule: RawRule::default()
+                inner: InnerRule::DefaultRule(
+                    DefaultRule{ action: Action::Block }
+                )
             })
         })
     }
 
     pub fn build(self) -> Result<Rule, ()> {
         self.inner.and_then(| parts | {
-            let mut raw_rule = RawRule::default();
+            let mut raw_rule = SerRule::default();
 
             let mut is_ipv6 = false;
 
@@ -242,11 +244,14 @@ impl Builder {
                 Proto::Any => 0,
             };
 
-            Ok(Rule{
-                is_ipv6,
-                default_policy: None,
-                proto: parts.proto,
-                rule : raw_rule
+            let inner_rule = if is_ipv6 {
+                InnerRule::IPv6Rule(raw_rule)
+            } else {
+                InnerRule::IPv4Rule(raw_rule)
+            };
+
+            Ok(Rule {
+                inner: inner_rule
             })
         })
     }

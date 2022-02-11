@@ -1,5 +1,5 @@
 [workspace]
 members = [
     "pf-rs",
-    "libpf-rs",
+    "pflib-rs",
 ]
