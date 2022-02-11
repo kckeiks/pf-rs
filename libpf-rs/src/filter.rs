@@ -94,7 +94,7 @@ impl Builder {
         })
     }
 
-    pub fn drop(self) -> Builder {
+    pub fn block(self) -> Builder {
         self.and_then(move | mut parts| {
             parts.action = Action::Block;
             Ok(parts)
