@@ -11,11 +11,12 @@ pub(crate) enum Proto {
     Any,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Action {
-    Pass,
-    Block
+    Block = 1,
+    Pass = 2
 }
+
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Debug, Default)]
 pub(crate) struct RawRule {

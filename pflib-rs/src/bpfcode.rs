@@ -67,24 +67,24 @@ struct hdr_cursor {
 
 const License: &str = r#"char __license[] SEC("license") = "GPL";"#;
 
-pub const BPF_SRC: &str = r##"
+pub const INCLUDE_HEADERS: &str = r##"
 // SPDX-License-Identifier: BSD-3-Clause
 /* Copyright (c) 2022 Miguel Guarniz */
-
-// headers
 #include "vmlinux.h"
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
+"##;
 
-// definitions
-#define ETH_P_IP 0x0800
-#define ETH_P_IPV6 0x86DD
-#define IPPROTO_UDP 17
-#define IPPROTO_TCP 6
-#define IPV6_ADDR_LEN 16
-#define NOOP 0
-#define RULE_COUNT 4
+pub const DEFINES: &str = "\
+#define ETH_P_IP 0x0800\n\
+#define ETH_P_IPV6 0x86DD\n\
+#define IPPROTO_UDP 17\n\
+#define IPPROTO_TCP 6\n\
+#define IPV6_ADDR_LEN 16\n\
+#define NOOP 0\n";
 
+
+pub const BPF_SRC: &str = r##"
 struct ip4_addr {
     __be32 saddr;
     __be32 daddr;
@@ -109,14 +109,14 @@ struct rule {
 // maps
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(max_entries, RULE_COUNT);
+    __uint(max_entries, IPV4_RULE_COUNT);
     __type(key, __u32);
     __type(value, struct rule);
 } ipv4_rules SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_ARRAY);
-    __uint(max_entries, RULE_COUNT);
+    __uint(max_entries, IPV6_RULE_COUNT);
     __type(key, __u32);
     __type(value, struct rule);
 } ipv6_rules SEC(".maps");
@@ -279,33 +279,32 @@ static int eval_rules(int ip_version, struct rule *packet)
 {
     struct rule *rule;
     int action = -1;
-    for (int i=0; i < RULE_COUNT; i++) {
-        if (ip_version == bpf_htons(ETH_P_IP)) {
+    if (ip_version == bpf_htons(ETH_P_IP)) {
+        for (int i=0; i < IPV4_RULE_COUNT; i++) {
             if (get_ipv4_rule(i, &rule) < 0) {
                 bpf_printk("Error: failed to get rule [index %d]", i);
                 return -1;
             }
             if (eval_ipv4_rule(rule, packet)) {
-                bpf_printk("------MATCHED RULE -------");
-                print_rule(rule);
                 action = rule->action;
             }
-        } else if (ip_version == bpf_htons(ETH_P_IPV6)) {
+        }
+    } else if (ip_version == bpf_htons(ETH_P_IPV6)) {
+        for (int i=0; i < IPV6_RULE_COUNT; i++) {
             if (get_ipv6_rule(i, &rule) < 0) {
                 bpf_printk("Error: failed to get rule [index %d]", i);
                 return -1;
             }
             if (eval_ipv6_rule(rule, packet)) {
-                bpf_printk("------MATCHED RULE -------");
-                print_rule(rule);
                 action = rule->action;
             }
         }
-
-        // if action != 1 then it must have matched a rule
-        if (rule->quick && action != -1)
-            return action;
     }
+
+    // if action != 1 then it must have matched a rule
+    if (rule->quick && action != -1)
+        return action;
+
     return action;
 }
 
@@ -364,14 +363,13 @@ int xdp_pf(struct xdp_md *ctx)
     if ((action = eval_rules(ip_version ,&packet)) >= 0) {
         // (struct rule) packet has info about (net) packet except action
         // so we add action only for logging purposes
-        // packet.action = action;
-        bpf_printk("------ PACKET -------");
+        packet.action = action;
         print_rule(&packet);
         return action;
     }
     out:
     // default action
-    return XDP_PASS;
+    return DEFAULT_ACTION;
 }
 
 char __license[] SEC("license") = "GPL";

@@ -10,7 +10,7 @@ use tempfile::{tempdir, TempDir};
 use crate::{bpf, compile};
 use crate::bpf::Loader;
 use crate::rule::{Rule, Action, InnerRule, RawRule};
-use crate::bpfcode::{BPF_SRC, VMLINUX};
+use crate::bpfcode::{BPF_SRC, DEFINES, INCLUDE_HEADERS, VMLINUX};
 
 #[derive(Debug)]
 pub struct Filter {
@@ -29,15 +29,14 @@ impl Filter {
         match rule.read_rule() {
             InnerRule::IPv6Rule(r) => self.ipv6_rules.push(r),
             InnerRule::IPv4Rule(r) => self.ipv4_rules.push(r),
-            InnerRule::DefaultRule(r) => self.default_act = r
+            InnerRule::DefaultRule(a) => self.default_act = a
         }
     }
 
     pub fn load_on(self, ifindex: i32) -> Result<(), ()> {
-        let mut loader = generate_and_load().unwrap();
+        let mut loader = self.generate_and_load().unwrap();
 
-        // add rules to filter
-        // before we get here, program map must know how many rules
+        // before we get here, program map must already know how many rules
         for (i, rule) in self.ipv4_rules.into_iter().enumerate() {
             let initial_value= bincode2::serialize(&rule)
                 .expect("rule serializer failed");
@@ -75,34 +74,66 @@ impl Filter {
 
         Ok(())
     }
-}
 
-fn generate_and_load() -> Result<Loader, ()> {
-    let filename = "pf";
-    let src_dir = tempdir().expect("error creating temp dir");
+    fn generate_and_load(&self) -> Result<Loader, ()> {
+        let filename = "pf";
+        let src_dir = tempdir().expect("could not create tmp dir");
 
-    let src_path = src_dir.path().join(format!("{}.bpf.c", filename));
-    let mut src = File::create(src_path.as_path()).unwrap();
-    if let Err(e) = src.write_all(BPF_SRC.as_bytes()) {
-        panic!("could not write src code")
+        let hdr_path = src_dir.path().join("vmlinux.h");
+        let hdr = generate_vmlinux_file(hdr_path.as_path());
+        let src_path = src_dir.path().join(format!("{}.bpf.c", filename));
+        let src = self.generate_src_file(src_path.as_path());
+
+        let obj_dir = tempdir().expect("error creating temp dir");
+        let obj_path = obj_dir.path().join(format!("{}.o", filename));
+
+        compile::compile(src_path.as_path(), obj_path.as_path()).expect("it failed!");
+
+        let loader = bpf::Loader::load_from_file(obj_path).expect("loade from file failed");
+
+        drop(hdr);
+        drop(src);
+        // TODO: just log these
+        src_dir.close().expect("coult not close src dir");
+        obj_dir.close().expect("coult not close obj dir");
+
+        Ok(loader)
     }
 
-    let hdr_path = src_dir.path().join("vmlinux.h");
-    let mut hdr = File::create(hdr_path.as_path()).unwrap();
+    fn generate_src_file(&self, path: &Path) -> File {
+        let mut src = File::create(path).unwrap();
+        if let Err(e) = src.write_all(INCLUDE_HEADERS.as_bytes()) {
+            panic!("could not write src code")
+        }
+
+        if let Err(e) = src.write_all(DEFINES.as_bytes()) {
+            panic!("could not write src code")
+        }
+
+        if let Err(e) = src.write_all(
+            format!("\
+            #define DEFAULT_ACTION {}\n\
+            #define IPV4_RULE_COUNT {}\n\
+            #define IPV6_RULE_COUNT {}\n",
+                    self.default_act as u32,
+                    self.ipv4_rules.len(),
+                    self.ipv6_rules.len()).as_bytes()
+        ) {
+            panic!("could not write src code")
+        }
+
+        if let Err(e) = src.write_all(BPF_SRC.as_bytes()) {
+            panic!("could not write src code")
+        }
+        src
+    }
+}
+
+fn generate_vmlinux_file(path: &Path) -> File {
+    let mut hdr = File::create(path).unwrap();
     if let Err(e) = hdr.write_all(VMLINUX.as_bytes()) {
         panic!("could not write vmlinux header")
     }
-
-    let obj_dir = tempdir().expect("error creating temp dir");
-    let obj_path = obj_dir.path().join(format!("{}.o", filename));
-
-    compile::compile(src_path.as_path(), obj_path.as_path()).expect("it failed!");
-
-    let loader = bpf::Loader::load_from_file(obj_path).expect("loade from file failed");
-
-    // TODO: just log these
-    src_dir.close().expect("coult not close src dir");
-    obj_dir.close().expect("coult not close obj dir");
-
-    Ok(loader)
+    hdr
 }
+
