@@ -1,7 +1,7 @@
 pflib-rs
 --------
-[] generate bpf.c file
-[] add errors and err handling
+[X] generate bpf.c file
+[X] add errors and err handling
 [] remove literals for constants in rule/filter.rs
 [] make Ipv4Rule and Ipv6Rule
 [] add tests for pflib
