@@ -2,11 +2,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::{thread, time};
 use std::net::Ipv4Addr;
+use std::fs::File;
+use std::io::Write;
 
 use std::path::Path;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 use crate::{bpf, compile};
+use crate::bpf::Loader;
 use crate::rule::{Rule, Action, InnerRule, RawRule};
+use crate::bpfcode::{BPF_SRC, VMLINUX};
 
 #[derive(Debug)]
 pub struct Filter {
@@ -30,17 +34,7 @@ impl Filter {
     }
 
     pub fn load_on(self, ifindex: i32) -> Result<(), ()> {
-        // internally we will name the file so it should be in the right format
-        // TODO: Generate bpf.c file
-        let file_name = "xdppass";
-        let src_file =  format!("./bpf/{}.bpf.c", file_name);
-        let src_path = Path::new(src_file.as_str());
-
-        let tmpdir = tempdir().expect("error creating temp dir");
-        let dst_path = tmpdir.path().join(format!("{}.o", file_name));
-        compile::compile(src_path, dst_path.as_path()).expect("it failed!");
-
-        let mut loader = bpf::Loader::load_from_file(dst_path).expect("loade from file failed");
+        let mut loader = generate_and_load().unwrap();
 
         // add rules to filter
         // before we get here, program map must know how many rules
@@ -81,4 +75,34 @@ impl Filter {
 
         Ok(())
     }
+}
+
+fn generate_and_load() -> Result<Loader, ()> {
+    let filename = "pf";
+    let src_dir = tempdir().expect("error creating temp dir");
+
+    let src_path = src_dir.path().join(format!("{}.bpf.c", filename));
+    let mut src = File::create(src_path.as_path()).unwrap();
+    if let Err(e) = src.write_all(BPF_SRC.as_bytes()) {
+        panic!("could not write src code")
+    }
+
+    let hdr_path = src_dir.path().join("vmlinux.h");
+    let mut hdr = File::create(hdr_path.as_path()).unwrap();
+    if let Err(e) = hdr.write_all(VMLINUX.as_bytes()) {
+        panic!("could not write vmlinux header")
+    }
+
+    let obj_dir = tempdir().expect("error creating temp dir");
+    let obj_path = obj_dir.path().join(format!("{}.o", filename));
+
+    compile::compile(src_path.as_path(), obj_path.as_path()).expect("it failed!");
+
+    let loader = bpf::Loader::load_from_file(obj_path).expect("loade from file failed");
+
+    // TODO: just log these
+    src_dir.close().expect("coult not close src dir");
+    obj_dir.close().expect("coult not close obj dir");
+
+    Ok(loader)
 }
