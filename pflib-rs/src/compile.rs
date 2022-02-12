@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Error, Result};
+use anyhow::{anyhow, bail, Context, Error, Result};
 use std::{fmt, fs};
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -11,8 +11,8 @@ pub fn compile(src: &Path, dst: &Path) -> Result<()> {
     let clang = PathBuf::from("clang");
     let mut cmd = Command::new(clang.as_os_str());
 
-    let bpf_headers_dir = tmp_setup_libbpf_headers()?;
-    let options = format!("-I{}", bpf_headers_dir.as_ref().to_str().unwrap());
+    let libbpf_dir = tmp_setup_libbpf_headers()?;
+    let options = format!("-I{}", libbpf_dir.as_ref().to_str().unwrap());
     cmd.args(options.split_whitespace());
 
     let arch = match std::env::consts::ARCH {
@@ -41,13 +41,14 @@ pub fn compile(src: &Path, dst: &Path) -> Result<()> {
 }
 
 pub fn tmp_setup_libbpf_headers() -> Result<TempDir> {
-    let hdr_dir = tempdir()?;
-    let dir = hdr_dir.path().join("bpf");
-    fs::create_dir_all(&dir)?;
+    let tmpdir = tempdir()?;
+    let hdrs_dir = tmpdir.path().join("bpf");
+    fs::create_dir_all(&hdrs_dir)?;
+
     for (filename, data) in libbpf_sys::API_HEADERS.iter() {
-        let path = dir.as_path().join(filename);
+        let path = hdrs_dir.as_path().join(filename);
         let mut file = OpenOptions::new().write(true).create(true).open(path)?;
         file.write_all(data.as_bytes())?;
     }
-    Ok(hdr_dir)
+    Ok(tmpdir)
 }

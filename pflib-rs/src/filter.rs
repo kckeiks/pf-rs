@@ -7,10 +7,12 @@ use std::io::Write;
 
 use std::path::Path;
 use tempfile::{tempdir, TempDir};
+use anyhow::Result;
 use crate::{bpf, compile};
 use crate::bpf::Loader;
 use crate::rule::{Rule, Action, InnerRule, RawRule};
 use crate::bpfcode::{BPF_SRC, DEFINES, INCLUDE_HEADERS, VMLINUX};
+use crate::error::Error;
 
 #[derive(Debug)]
 pub struct Filter {
@@ -33,39 +35,40 @@ impl Filter {
         }
     }
 
-    pub fn load_on(self, ifindex: i32) -> Result<(), ()> {
-        let mut loader = self.generate_and_load().unwrap();
+    pub fn load_on(self, ifindex: i32) -> Result<()> {
+        let mut loader = self.generate_and_load()
+            .map_err(|e| Error::Internal(e.to_string()))?;
 
-        // before we get here, program map must already know how many rules
         for (i, rule) in self.ipv4_rules.into_iter().enumerate() {
             let initial_value= bincode2::serialize(&rule)
-                .expect("rule serializer failed");
+                .map_err(|e| Error::Internal(e.to_string()))?;
             let index = bincode2::serialize(&(i as u32))
-                .expect("could not deserialize index");
+                .map_err(|e| Error::Internal(e.to_string()))?;
 
-            loader
-                .update_map("ipv4_rules", &index, &initial_value, 0).unwrap();
+            loader.update_map("ipv4_rules", &index, &initial_value, 0)
+                .map_err(|e| Error::Internal(e.to_string()));
         }
 
         for (i, rule) in self.ipv6_rules.into_iter().enumerate() {
             let initial_value= bincode2::serialize(&rule)
-                .expect("rule serializer failed");
+                .map_err(|e| Error::Internal(e.to_string()))?;
             let index = bincode2::serialize(&(i as u32))
-                .expect("could not deserialize index");
+                .map_err(|e| Error::Internal(e.to_string()))?;
 
-            loader
-                .update_map("ipv6_rules", &index, &initial_value, 0).unwrap();
+            loader.update_map("ipv6_rules", &index, &initial_value, 0)
+                .map_err(|e| Error::Internal(e.to_string()))?;
         }
 
         // attach prog
-        let Link = loader.attach_prog(ifindex).expect("failed to attach program");
+        let Link = loader.attach_prog(ifindex)
+            .map_err(|e| Error::Internal(e.to_string()))?;
 
         // /* keep it alive */
         let running = Arc::new(AtomicBool::new(true));
         let r = running.clone();
         ctrlc::set_handler(move || {
             r.store(false, Ordering::SeqCst);
-        }).unwrap();
+        }).map_err(|e| Error::Internal(e.to_string()))?;
 
         while running.load(Ordering::SeqCst) {
             eprint!(".");
@@ -75,42 +78,40 @@ impl Filter {
         Ok(())
     }
 
-    fn generate_and_load(&self) -> Result<Loader, ()> {
+    fn generate_and_load(&self) -> Result<Loader> {
         let filename = "pf";
-        let src_dir = tempdir().expect("could not create tmp dir");
+        let src_dir = tempdir()?;
 
         let hdr_path = src_dir.path().join("vmlinux.h");
         let hdr = generate_vmlinux_file(hdr_path.as_path());
         let src_path = src_dir.path().join(format!("{}.bpf.c", filename));
-        let src = self.generate_src_file(src_path.as_path());
+        let src = self.generate_src_file(src_path.as_path())?;
 
         let obj_dir = tempdir().expect("error creating temp dir");
         let obj_path = obj_dir.path().join(format!("{}.o", filename));
 
-        compile::compile(src_path.as_path(), obj_path.as_path()).expect("it failed!");
+        compile::compile(src_path.as_path(), obj_path.as_path())?;
 
-        let loader = bpf::Loader::load_from_file(obj_path).expect("loade from file failed");
+        let loader = bpf::Loader::load_from_file(obj_path)?;
 
         drop(hdr);
         drop(src);
-        // TODO: just log these
-        src_dir.close().expect("coult not close src dir");
-        obj_dir.close().expect("coult not close obj dir");
+
+        if let Err(e) = src_dir.close() {
+            println!("coult not close src dir");
+        }
+        if let Err(e) = obj_dir.close() {
+            println!("coult not close obj dir");
+        }
 
         Ok(loader)
     }
 
-    fn generate_src_file(&self, path: &Path) -> File {
-        let mut src = File::create(path).unwrap();
-        if let Err(e) = src.write_all(INCLUDE_HEADERS.as_bytes()) {
-            panic!("could not write src code")
-        }
-
-        if let Err(e) = src.write_all(DEFINES.as_bytes()) {
-            panic!("could not write src code")
-        }
-
-        if let Err(e) = src.write_all(
+    fn generate_src_file(&self, path: &Path) -> Result<File> {
+        let mut src = File::create(path)?;
+        src.write_all(INCLUDE_HEADERS.as_bytes())?;
+        src.write_all(DEFINES.as_bytes())?;
+        src.write_all(
             format!("\
             #define DEFAULT_ACTION {}\n\
             #define IPV4_RULE_COUNT {}\n\
@@ -118,22 +119,18 @@ impl Filter {
                     self.default_act as u32,
                     self.ipv4_rules.len(),
                     self.ipv6_rules.len()).as_bytes()
-        ) {
-            panic!("could not write src code")
-        }
+        )?;
+        src.write_all(BPF_SRC.as_bytes())?;
 
-        if let Err(e) = src.write_all(BPF_SRC.as_bytes()) {
-            panic!("could not write src code")
-        }
-        src
+        Ok(src)
     }
 }
 
-fn generate_vmlinux_file(path: &Path) -> File {
-    let mut hdr = File::create(path).unwrap();
+fn generate_vmlinux_file(path: &Path) -> Result<File> {
+    let mut hdr = File::create(path)?;
     if let Err(e) = hdr.write_all(VMLINUX.as_bytes()) {
         panic!("could not write vmlinux header")
     }
-    hdr
+    Ok(hdr)
 }
 

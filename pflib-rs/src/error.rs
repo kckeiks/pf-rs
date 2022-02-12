@@ -4,10 +4,10 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("compile error: {0}")]
-    Compile(String),
-    #[error("system error: {0}")]
-    System(i32),
+    #[error("error when building pf: {0}")]
+    Load(String),
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
 pub type Result<T> = result::Result<T, Error>;
