@@ -3,6 +3,9 @@ use std::result::{IntoIter, Iter};
 use std::str::FromStr;
 use crate::ip::{ToSockAddr, ToIpAddr};
 use serde::{Serialize, Deserialize};
+use anyhow::{bail, Result};
+
+use crate::error::Error;
 
 #[derive(Debug)]
 pub(crate) enum Proto {
@@ -73,7 +76,7 @@ impl Default for Parts {
 
 #[derive(Debug)]
 pub struct Builder {
-    inner: Result<Parts, ()>
+    inner: Result<Parts>
 }
 
 impl Builder {
@@ -107,7 +110,9 @@ impl Builder {
             parts.proto = match proto.as_ref().to_lowercase().as_str() {
                 "udp" => Proto::UDP,
                 "tcp" => Proto::TCP,
-                _ => return Err(())
+                _ => bail!(
+                    Error::InvalidInput("invalid protocol must be `tcp` or `udp`".to_string())
+                ),
             };
             Ok(parts)
         })
@@ -115,10 +120,9 @@ impl Builder {
 
     pub fn from<T: ToSockAddr>(self, src: T) -> Builder {
         self.and_then(move |mut parts| {
-            let addr = match src.to_sock_addr() {
-                Ok(a) => a,
-                Err(_) => return Err(()),  // TODO: handle better
-            };
+            let addr = src
+                .to_sock_addr()
+                .map_err(|e| Error::InvalidInput(e.to_string()))?;
             parts.saddr = Some(addr);
             Ok(parts)
         })
@@ -126,10 +130,9 @@ impl Builder {
 
     pub fn from_any_port<T: ToIpAddr>(self, src: T) -> Builder {
         self.and_then(move |mut parts| {
-            let ip_addr = match src.to_ip_addr() {
-                Ok(a) => a,
-                Err(_) => return Err(()) // TODO: handle better
-            };
+            let ip_addr = src
+                .to_ip_addr()
+                .map_err(|e| Error::InvalidInput(e.to_string()))?;
             let addr = SocketAddr::new(ip_addr, 0);
             parts.saddr = Some(addr);
             Ok(parts)
@@ -138,10 +141,9 @@ impl Builder {
 
     pub fn to<T: ToSockAddr>(self, dst: T) -> Builder {
         self.and_then(move |mut parts| {
-            let addr = match dst.to_sock_addr() {
-                Ok(a) => a,
-                Err(_) => return Err(()), // TODO: handle better
-            };
+            let addr = dst
+                .to_sock_addr()
+                .map_err(|e| Error::InvalidInput(e.to_string()))?;
             parts.daddr = Some(addr);
             Ok(parts)
         })
@@ -149,10 +151,9 @@ impl Builder {
 
     pub fn to_any_port<T: ToIpAddr>(self, dst: T) -> Builder {
         self.and_then(move |mut parts| {
-            let ip_addr = match dst.to_ip_addr() {
-                Ok(a) => a,
-                Err(_) => return Err(()) // TODO: handle better
-            };
+            let ip_addr = dst
+                .to_ip_addr()
+                .map_err(|e| Error::InvalidInput(e.to_string()))?;
             let sock_addr = SocketAddr::new(ip_addr, 0);
             parts.daddr = Some(sock_addr);
             Ok(parts)
@@ -160,7 +161,7 @@ impl Builder {
     }
 
 
-    pub fn pass_all(self) -> Result<Rule, ()> {
+    pub fn pass_all(self) -> Result<Rule> {
         self.inner.and_then(| _ | {
             Ok(Rule {
                 inner: InnerRule::DefaultRule(Action::Pass)
@@ -168,7 +169,7 @@ impl Builder {
         })
     }
 
-    pub fn block_all(self) -> Result<Rule, ()> {
+    pub fn block_all(self) -> Result<Rule> {
         self.inner.and_then(| _ | {
             Ok(Rule {
                 inner: InnerRule::DefaultRule(Action::Block)
@@ -176,7 +177,7 @@ impl Builder {
         })
     }
 
-    pub fn build(self) -> Result<Rule, ()> {
+    pub fn build(self) -> Result<Rule> {
         self.inner.and_then(| parts | {
             let mut raw_rule = RawRule::default();
 
@@ -186,13 +187,15 @@ impl Builder {
                 (Some(s), Some(d)) => {
                     // if we have src and dst then they should be of the same ip version
                     if s.is_ipv6() != d.is_ipv6() {
-                        return Err(());
+                        bail!(Error::Build("src & dst IP versions do not match".to_string()));
                     }
                     is_ipv6 = s.is_ipv6();
                 }
                 (Some(s), None) => is_ipv6 = s.is_ipv6(),
                 (None, Some(d)) => is_ipv6 = d.is_ipv6(),
-                (None, None) => return Err(()), // TODO: not allowed, direct them to use pass/block all
+                (None, None) => bail!(
+                    Error::Build("you must specify at least src or dst IP".to_string())
+                ),
             }
 
             if let Some(SocketAddr::V4(a)) = parts.saddr {
@@ -245,7 +248,7 @@ impl Builder {
     }
 
     fn and_then<F>(self, op: F) -> Self
-        where F: FnOnce(Parts) -> Result<Parts, ()> {
+        where F: FnOnce(Parts) -> Result<Parts> {
         Builder {
             inner: self.inner.and_then(op)
         }
