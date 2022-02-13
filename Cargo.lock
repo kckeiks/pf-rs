@@ -147,6 +147,7 @@ dependencies = [
 name = "pf-rs"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "pflib-rs",
  "thiserror",
 ]

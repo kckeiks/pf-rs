@@ -3,6 +3,7 @@ mod common;
 mod generator;
 mod lexer;
 mod parser;
+mod error;
 
 use pflib_rs;
 

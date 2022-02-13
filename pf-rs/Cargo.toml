@@ -9,5 +9,6 @@ keywords = ["bpf", "ebpf", "pflib", "pf"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.53"
 thiserror = "1.0.30"
 pflib-rs = { path = "../pflib-rs" }

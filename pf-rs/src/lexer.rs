@@ -2,6 +2,7 @@ use crate::common::*;
 use std::fs;
 use std::iter::Peekable;
 use std::vec::IntoIter;
+use crate::common::Token::{Port, To};
 
 pub struct Lexer {
     buf: Peekable<IntoIter<char>>,
@@ -60,16 +61,14 @@ impl Iterator for Lexer {
             return None;
         }
         match &word[..] {
-            PASS => Some(Token::Pass(word)),
-            BLOCK => Some(Token::Block(word)),
+            PASS => Some(Token::Pass),
+            BLOCK => Some(Token::Block),
             ON => Some(Token::On(self.next_word())),
             PROTO => Some(Token::Proto(self.next_word())),
+            PORT => Some(Token::Port(self.next_word())),
             FROM => Some(Token::From(self.next_word())),
             TO => Some(Token::To(self.next_word())),
             NEWLINE => Some(Token::NewLine(word)),
-            w if w.ends_with(ASSIGN_PATTERN) => Some(Token::Assign(word)),
-            w if w.starts_with(IDEN_PATTERN) => Some(Token::Identifier(word)),
-            w if !w.is_empty() => Some(Token::Value(word)),
             _ => None,
         }
     }

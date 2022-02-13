@@ -1,89 +1,65 @@
 use std::iter::Peekable;
 use std::vec::IntoIter;
+use anyhow::{bail, Result};
 
 use crate::common::*;
 use crate::lexer::Lexer;
+use crate::error::Error;
 
 pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,
-    ifaces: Vec<String>,
-    src_allow_list: Vec<String>,
-    src_block_list: Vec<String>,
-    dst_allow_list: Vec<String>,
-    dst_block_list: Vec<String>,
-    protos: Vec<String>,
+    rules: Vec<IntoIter<Token>>,
 }
 
 impl Parser {
     pub fn new(tokens: Peekable<IntoIter<Token>>) -> Self {
         Parser {
             tokens,
-            ifaces: Vec::new(),
-            src_allow_list: Vec::new(),
-            src_block_list: Vec::new(),
-            dst_allow_list: Vec::new(),
-            dst_block_list: Vec::new(),
-            protos: Vec::new(),
+            rules: Vec::new()
         }
     }
 
-    fn parse_statement(&mut self) {
-        match self.tokens.next() {
-            Some(Token::Pass(action)) | Some(Token::Block(action)) => {
-                println!("action {:?}", action);
-                // TODO: handle/fix these ifs
-                if self.tokens.peek().is_none() {
-                    panic!("you must tell us what to {:?}", &action);
-                }
-                match self.tokens.next() {
-                    Some(Token::On(iface)) => {
-                        println!("on {:?}", iface);
-                        self.ifaces.push(iface);
-                    }
-                    _ => {
-                        panic!("missing iface");
-                    }
-                }
-                match self.tokens.next() {
-                    Some(Token::Proto(proto)) => {
-                        println!("proto {:?}", proto);
-                        self.protos.push(proto);
-                    }
-                    _ => {}
-                }
-
-                match self.tokens.next() {
-                    Some(Token::From(ip)) => {
-                        println!("from {:?}", ip);
-                        if action == "pass" {
-                            self.src_allow_list.push(ip);
-                        } else {
-                            self.src_block_list.push(ip);
-                        }
-                    }
-                    _ => {
-                        panic!("missing from src addrress");
-                    }
-                }
-
-                match self.tokens.next() {
-                    Some(Token::To(ip)) => {
-                        println!("to {:?}", ip);
-                        if action == "pass" {
-                            self.dst_allow_list.push(ip);
-                        } else {
-                            self.dst_block_list.push(ip);
-                        }
-                    }
-                    _ => {
-                        panic!("missing to dst address");
-                    }
-                }
-            }
-            _ => {
-                panic!("expected action: pass or block");
-            }
+    fn parse_statement(&mut self) -> Result<()> {
+        let mut rule: Vec<Token> = Vec::new();
+        match self.tokens.peek() {
+            Some(Token::Pass) | Some(Token::Block)=> rule.push(self.tokens.next().unwrap()),
+            Some(t) => bail!(Error::ParseError("invalid token {:?}", t)),
+            None => bail!(Error::ParseError("Expected `pass` or `block`".to_string())),
         }
+
+        match self.tokens.peek() {
+            Some(Token::Proto(proto)) => rule.push(self.tokens.next().unwrap()),
+            Some(_) => (),
+            None => bail!(Error::ParseError("missing required keywords - read useage".to_string())),
+        }
+
+        // Use IPaddress to validate that it is valid
+        match self.tokens.peek() {
+            Some(Token::From(_)) => rule.push(self.tokens.next().unwrap()),
+            Some(t) => bail!("invalid token {:?}, expected `from`", t),
+            None => bail!(Error::ParseError("missing required keywords - read useage".to_string())),
+        }
+
+        // remove duplicate
+        match self.tokens.peek() {
+            Some(Token::Port(_)) => rule.push(self.tokens.next().unwrap()),
+            Some(_) => (),
+            None => (),
+        }
+
+        match self.tokens.peek() {
+            Some(Token::To(_)) => rule.push(self.tokens.next().unwrap()),
+            Some(t) => bail!("invalid token {:?}, expected `to`", t),
+            None => bail!(Error::ParseError("missing required keywords - read useage".to_string())),
+        }
+
+        match self.tokens.peek() {
+            Some(Token::Port(_)) => rule.push(self.tokens.next().unwrap()),
+            Some(_) => (),
+            None => (),
+        }
+        self.rules.push(rule.into_iter());
+        Ok(())
     }
 
     pub fn parse_statements(&mut self) {
