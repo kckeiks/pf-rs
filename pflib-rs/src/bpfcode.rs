@@ -83,7 +83,6 @@ pub const DEFINES: &str = "\
 #define IPV6_ADDR_LEN 16\n\
 #define NOOP 0\n";
 
-
 pub const BPF_SRC: &str = r##"
 struct ip4_addr {
     __be32 saddr;

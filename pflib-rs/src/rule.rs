@@ -1,9 +1,12 @@
-use std::net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
+use crate::ip::{get_zero_addr, ToSockAddr};
+use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
+use std::net::{
+    AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6,
+    ToSocketAddrs,
+};
 use std::result::{IntoIter, Iter};
 use std::str::FromStr;
-use crate::ip::{ToSockAddr, ToIpAddr};
-use serde::{Serialize, Deserialize};
-use anyhow::{bail, Result};
 
 use crate::error::Error;
 
@@ -17,9 +20,8 @@ pub(crate) enum Proto {
 #[derive(Clone, Copy, Debug)]
 pub enum Action {
     Block = 1,
-    Pass = 2
+    Pass = 2,
 }
-
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Debug, Default)]
 pub(crate) struct RawRule {
@@ -43,7 +45,7 @@ pub(crate) enum InnerRule {
 
 #[derive(Debug)]
 pub struct Rule {
-    inner: InnerRule
+    inner: InnerRule,
 }
 
 impl Rule {
@@ -56,16 +58,18 @@ impl Rule {
 #[derive(Debug)]
 struct Parts {
     action: Action,
+    is_ipv6: bool,
     quick: bool,
     proto: Proto,
     saddr: Option<SocketAddr>,
-    daddr: Option<SocketAddr>
+    daddr: Option<SocketAddr>,
 }
 
 impl Default for Parts {
     fn default() -> Self {
         Parts {
             action: Action::Pass,
+            is_ipv6: false,
             quick: false,
             proto: Proto::Any,
             saddr: None,
@@ -76,30 +80,32 @@ impl Default for Parts {
 
 #[derive(Debug)]
 pub struct Builder {
-    inner: Result<Parts>
+    inner: Result<Parts>,
 }
 
 impl Builder {
     pub fn new() -> Self {
-        Builder { inner: Ok(Parts::default()) }
+        Builder {
+            inner: Ok(Parts::default()),
+        }
     }
 
     pub fn pass(self) -> Builder {
-        self.and_then(move | mut parts| {
+        self.and_then(move |mut parts| {
             parts.action = Action::Pass;
             Ok(parts)
         })
     }
 
     pub fn block(self) -> Builder {
-        self.and_then(move | mut parts| {
+        self.and_then(move |mut parts| {
             parts.action = Action::Block;
             Ok(parts)
         })
     }
 
     pub fn quick(self) -> Builder {
-        self.and_then(| mut parts | {
+        self.and_then(|mut parts| {
             parts.quick = true;
             Ok(parts)
         })
@@ -110,75 +116,100 @@ impl Builder {
             parts.proto = match proto.as_ref().to_lowercase().as_str() {
                 "udp" => Proto::UDP,
                 "tcp" => Proto::TCP,
-                _ => bail!(
-                    Error::InvalidInput("invalid protocol must be `tcp` or `udp`".to_string())
-                ),
+                _ => bail!(Error::InvalidInput(
+                    "invalid protocol must be `tcp` or `udp`".to_string()
+                )),
             };
             Ok(parts)
         })
     }
 
-    pub fn from<T: ToSockAddr>(self, src: T) -> Builder {
+    pub fn set_ipv4(self) -> Builder {
+        self.and_then(|mut parts| {
+            parts.is_ipv6 = false;
+            Ok(parts)
+        })
+    }
+
+    pub fn set_ipv6(self) -> Builder {
+        self.and_then(|mut parts| {
+            parts.is_ipv6 = true;
+            Ok(parts)
+        })
+    }
+
+    pub fn from_addr<T: ToSockAddr>(self, src: T) -> Builder {
         self.and_then(move |mut parts| {
             let addr = src
                 .to_sock_addr()
                 .map_err(|e| Error::InvalidInput(e.to_string()))?;
+            parts.is_ipv6 = addr.is_ipv6();
             parts.saddr = Some(addr);
             Ok(parts)
         })
     }
 
-    pub fn from_any_port<T: ToIpAddr>(self, src: T) -> Builder {
+    pub fn from_port(self, port: u16) -> Builder {
         self.and_then(move |mut parts| {
-            let ip_addr = src
-                .to_ip_addr()
-                .map_err(|e| Error::InvalidInput(e.to_string()))?;
-            let addr = SocketAddr::new(ip_addr, 0);
-            parts.saddr = Some(addr);
+            parts.saddr = parts
+                .saddr
+                .or_else(|| {
+                    let addr = get_zero_addr(parts.is_ipv6);
+                    Some(addr)
+                })
+                .and_then(|mut addr| {
+                    addr.set_port(port);
+                    Some(addr)
+                });
             Ok(parts)
         })
     }
 
-    pub fn to<T: ToSockAddr>(self, dst: T) -> Builder {
+    pub fn to_addr<T: ToSockAddr>(self, dst: T) -> Builder {
         self.and_then(move |mut parts| {
             let addr = dst
                 .to_sock_addr()
                 .map_err(|e| Error::InvalidInput(e.to_string()))?;
+            parts.is_ipv6 = addr.is_ipv6();
             parts.daddr = Some(addr);
             Ok(parts)
         })
     }
 
-    pub fn to_any_port<T: ToIpAddr>(self, dst: T) -> Builder {
+    pub fn to_port(self, port: u16) -> Builder {
         self.and_then(move |mut parts| {
-            let ip_addr = dst
-                .to_ip_addr()
-                .map_err(|e| Error::InvalidInput(e.to_string()))?;
-            let sock_addr = SocketAddr::new(ip_addr, 0);
-            parts.daddr = Some(sock_addr);
+            parts.daddr = parts
+                .daddr
+                .or_else(|| {
+                    let addr = get_zero_addr(parts.is_ipv6);
+                    Some(addr)
+                })
+                .and_then(|mut addr| {
+                    addr.set_port(port);
+                    Some(addr)
+                });
             Ok(parts)
         })
     }
 
-
     pub fn pass_all(self) -> Result<Rule> {
-        self.inner.and_then(| _ | {
+        self.inner.and_then(|parts| {
             Ok(Rule {
-                inner: InnerRule::DefaultRule(Action::Pass)
+                inner: InnerRule::DefaultRule(Action::Pass),
             })
         })
     }
 
     pub fn block_all(self) -> Result<Rule> {
-        self.inner.and_then(| _ | {
+        self.inner.and_then(|_| {
             Ok(Rule {
-                inner: InnerRule::DefaultRule(Action::Block)
+                inner: InnerRule::DefaultRule(Action::Block),
             })
         })
     }
 
     pub fn build(self) -> Result<Rule> {
-        self.inner.and_then(| parts | {
+        self.inner.and_then(|parts| {
             let mut raw_rule = RawRule::default();
 
             let mut is_ipv6 = false;
@@ -187,15 +218,19 @@ impl Builder {
                 (Some(s), Some(d)) => {
                     // if we have src and dst then they should be of the same ip version
                     if s.is_ipv6() != d.is_ipv6() {
-                        bail!(Error::Build("src & dst IP versions do not match".to_string()));
+                        bail!(Error::Build(
+                            "src & dst IP versions do not match".to_string()
+                        ));
                     }
                     is_ipv6 = s.is_ipv6();
                 }
                 (Some(s), None) => is_ipv6 = s.is_ipv6(),
                 (None, Some(d)) => is_ipv6 = d.is_ipv6(),
-                (None, None) => bail!(
-                    Error::Build("you must specify at least src or dst IP".to_string())
-                ),
+                (None, None) => is_ipv6 = parts.is_ipv6,
+            }
+
+            if is_ipv6 != parts.is_ipv6 {
+                bail!(Error::Build("error: IP version mismatch".to_string()))
             }
 
             if let Some(SocketAddr::V4(a)) = parts.saddr {
@@ -215,7 +250,7 @@ impl Builder {
             }
             if let Some(SocketAddr::V6(a)) = parts.daddr {
                 let addr: u128 = (*a.ip()).into();
-                raw_rule.daddr6 =  addr.to_be();
+                raw_rule.daddr6 = addr.to_be();
                 raw_rule.dport = a.port().to_be();
             }
 
@@ -241,17 +276,16 @@ impl Builder {
                 InnerRule::IPv4Rule(raw_rule)
             };
 
-            Ok(Rule {
-                inner: inner_rule
-            })
+            Ok(Rule { inner: inner_rule })
         })
     }
 
     fn and_then<F>(self, op: F) -> Self
-        where F: FnOnce(Parts) -> Result<Parts> {
+    where
+        F: FnOnce(Parts) -> Result<Parts>,
+    {
         Builder {
-            inner: self.inner.and_then(op)
+            inner: self.inner.and_then(op),
         }
     }
-
 }

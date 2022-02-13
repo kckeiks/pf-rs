@@ -1,11 +1,11 @@
 use anyhow::{anyhow, bail, Context, Error, Result};
-use std::{fmt, fs};
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use tempfile::{tempdir, TempDir};
 use std::str;
+use std::{fmt, fs};
+use tempfile::{tempdir, TempDir};
 
 pub fn compile(src: &Path, dst: &Path) -> Result<()> {
     let clang = PathBuf::from("clang");
