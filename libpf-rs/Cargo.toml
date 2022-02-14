@@ -1,11 +1,11 @@
 [package]
-name = "pflib-rs"
+name = "libpf_rs"
 version = "0.1.0"
 edition = "2021"
 description = "Rust library for building BPF packet filters"
 authors = ["Miguel Guarniz <mi9uel9@gmail.com>"]
 license = "LGPL-2.1 OR BSD-2-Clause"
-keywords = ["bpf", "ebpf", "pflib", "pf"]
+keywords = ["bpf", "ebpf", "libpf", "pf"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
