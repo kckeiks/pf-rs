@@ -1,12 +1,12 @@
-use anyhow::{anyhow, bail, Result};
-use libbpf_sys;
-use libbpf_sys::bpf_object;
 use std::collections::HashMap;
 use std::ffi::{c_void, CStr, CString};
-use std::iter::Map;
 use std::path::Path;
 use std::ptr;
 
+use anyhow::{anyhow, bail, Result};
+use libbpf_sys;
+
+#[allow(dead_code)]
 pub struct BPFLink {
     ptr: *mut libbpf_sys::bpf_link,
 }
@@ -34,7 +34,7 @@ impl Loader {
 
         let mut prev_map: *mut libbpf_sys::bpf_map = std::ptr::null_mut();
         loop {
-            let mut next_ptr = unsafe { libbpf_sys::bpf_object__next_map(obj.ptr, prev_map) };
+            let next_ptr = unsafe { libbpf_sys::bpf_object__next_map(obj.ptr, prev_map) };
             if next_ptr.is_null() {
                 break;
             }
@@ -63,7 +63,7 @@ impl Loader {
         // we're only expecting to handle one program but this will make it easier to extend
         let mut prev_prog: *mut libbpf_sys::bpf_program = std::ptr::null_mut();
         loop {
-            let mut next_ptr = unsafe { libbpf_sys::bpf_object__next_program(obj.ptr, prev_prog) };
+            let next_ptr = unsafe { libbpf_sys::bpf_object__next_program(obj.ptr, prev_prog) };
             if next_ptr.is_null() {
                 break;
             }
@@ -133,6 +133,7 @@ impl Drop for Loader {
 }
 
 struct BPFMap {
+    #[allow(dead_code)]
     map_ptr: *mut libbpf_sys::bpf_map,
     fd: i32,
     key_size: u32,

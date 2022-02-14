@@ -1,8 +1,9 @@
-use crate::common::Token::{Port, To};
-use crate::common::*;
 use std::fs;
 use std::iter::Peekable;
 use std::vec::IntoIter;
+
+use crate::common::Token;
+use crate::common::{BLOCK, FROM, ON, PASS, PORT, PROTO, TO};
 
 pub struct Lexer {
     buf: Peekable<IntoIter<char>>,
@@ -68,7 +69,6 @@ impl Iterator for Lexer {
             PORT => Some(Token::Port(self.next_word())),
             FROM => Some(Token::From(self.next_word())),
             TO => Some(Token::To(self.next_word())),
-            NEWLINE => Some(Token::NewLine(word)),
             _ => None,
         }
     }

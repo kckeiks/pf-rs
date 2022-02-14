@@ -1,13 +1,14 @@
-use anyhow::{bail, Result};
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
-use crate::common::*; // TODO: fix
-use crate::error::Error;
-use crate::lexer::Lexer;
+use anyhow::{bail, Result};
+
 use pflib_rs::filter::Filter;
 use pflib_rs::rule::{Builder, Rule};
 use pflib_rs::BPFLink;
+
+use crate::common::*;
+use crate::error::Error;
 
 pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,
@@ -98,13 +99,14 @@ impl Parser {
         Ok(())
     }
 
-    pub fn parse_statements(&mut self) {
+    pub fn parse_statements(&mut self) -> Result<()> {
         loop {
             if self.tokens.peek().is_none() {
                 break;
             }
-            self.parse_statement();
+            self.parse_statement()?;
         }
+        Ok(())
     }
 
     pub fn get_rules(self) -> Vec<Rule> {
@@ -117,6 +119,5 @@ pub fn load_filter(rules: Vec<Rule>, ifindex: i32) -> Result<BPFLink> {
     for r in rules.into_iter() {
         f.add_rule(r);
     }
-    let mut link = f.load_on(ifindex)?;
-    Ok(link)
+    Ok(f.load_on(ifindex)?)
 }

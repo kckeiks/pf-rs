@@ -1,14 +1,9 @@
-use crate::ip::{get_zero_addr, ToSockAddr};
-use anyhow::{bail, Result};
-use serde::{Deserialize, Serialize};
-use std::net::{
-    AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6,
-    ToSocketAddrs,
-};
-use std::result::{IntoIter, Iter};
-use std::str::FromStr;
+use std::net::SocketAddr;
 
-use crate::error::Error;
+use serde::{Deserialize, Serialize};
+
+use crate::error::{Error, Result};
+use crate::ip::{get_zero_addr, ToSockAddr};
 
 #[derive(Debug)]
 pub(crate) enum Proto {
@@ -116,9 +111,11 @@ impl Builder {
             parts.proto = match proto.as_ref().to_lowercase().as_str() {
                 "udp" => Proto::UDP,
                 "tcp" => Proto::TCP,
-                _ => bail!(Error::InvalidInput(
-                    "invalid protocol must be `tcp` or `udp`".to_string()
-                )),
+                _ => {
+                    return Err(Error::InvalidInput(
+                        "invalid protocol must be `tcp` or `udp`".to_string(),
+                    ))
+                }
             };
             Ok(parts)
         })
@@ -193,7 +190,7 @@ impl Builder {
     }
 
     pub fn pass_all(self) -> Result<Rule> {
-        self.inner.and_then(|parts| {
+        self.inner.and_then(|_| {
             Ok(Rule {
                 inner: InnerRule::DefaultRule(Action::Pass),
             })
@@ -212,14 +209,14 @@ impl Builder {
         self.inner.and_then(|parts| {
             let mut raw_rule = RawRule::default();
 
-            let mut is_ipv6 = false;
+            let is_ipv6: bool;
 
             match (&parts.saddr, &parts.daddr) {
                 (Some(s), Some(d)) => {
                     // if we have src and dst then they should be of the same ip version
                     if s.is_ipv6() != d.is_ipv6() {
-                        bail!(Error::Build(
-                            "src & dst IP versions do not match".to_string()
+                        return Err(Error::Build(
+                            "src & dst IP versions do not match".to_string(),
                         ));
                     }
                     is_ipv6 = s.is_ipv6();
@@ -230,7 +227,7 @@ impl Builder {
             }
 
             if is_ipv6 != parts.is_ipv6 {
-                bail!(Error::Build("error: IP version mismatch".to_string()))
+                return Err(Error::Build("error: IP version mismatch".to_string()));
             }
 
             if let Some(SocketAddr::V4(a)) = parts.saddr {

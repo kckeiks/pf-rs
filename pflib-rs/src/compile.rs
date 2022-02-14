@@ -1,11 +1,12 @@
-use anyhow::{anyhow, bail, Context, Error, Result};
+use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::str;
-use std::{fmt, fs};
+
 use tempfile::{tempdir, TempDir};
+
+use crate::error::{Error, Result};
 
 pub fn compile(src: &Path, dst: &Path) -> Result<()> {
     let clang = PathBuf::from("clang");
@@ -31,24 +32,32 @@ pub fn compile(src: &Path, dst: &Path) -> Result<()> {
         .arg("-o")
         .arg(dst);
 
-    let output = cmd.output()?;
+    let output = cmd.output().map_err(|e| Error::Build(e.to_string()))?;
 
     if !output.status.success() {
-        bail!("clang failed to compile BPF program: {:?}", output);
+        return Err(Error::Build(format!(
+            "clang failed to compile BPF program: {:?}",
+            output
+        )));
     }
 
     Ok(())
 }
 
 pub fn tmp_setup_libbpf_headers() -> Result<TempDir> {
-    let tmpdir = tempdir()?;
+    let tmpdir = tempdir().map_err(|e| Error::Build(e.to_string()))?;
     let hdrs_dir = tmpdir.path().join("bpf");
-    fs::create_dir_all(&hdrs_dir)?;
+    fs::create_dir_all(&hdrs_dir).map_err(|e| Error::Build(e.to_string()))?;
 
     for (filename, data) in libbpf_sys::API_HEADERS.iter() {
         let path = hdrs_dir.as_path().join(filename);
-        let mut file = OpenOptions::new().write(true).create(true).open(path)?;
-        file.write_all(data.as_bytes())?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(path)
+            .map_err(|e| Error::Build(e.to_string()))?;
+        file.write_all(data.as_bytes())
+            .map_err(|e| Error::Build(e.to_string()))?;
     }
     Ok(tmpdir)
 }
