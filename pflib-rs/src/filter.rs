@@ -1,3 +1,33 @@
+/*
+Example:
+
+pub fn load_filter(ifindex: i32) {
+    let addrs = [
+        ("10.11.4.2", "10.11.3.2"),
+        ("10.11.6.2", "10.11.3.2"),
+        ("10.11.5.2", "10.11.2.2"),
+        ("10.11.127.2", "100.11.2.2"),
+        ("0:0:0:0:0:FFFF:204.152.189.116", "1:0:0:0:0:0:0:8"),
+        ("0:0:0:0:0:FFFF:204.152.189.116", "1:0:0:0:0:0:0:8"),
+    ];
+
+    let mut filter = filter::Filter::new();
+
+    for (src, dst) in addrs.into_iter() {
+        filter.add_rule(
+            Builder::new()
+                .block()
+                .from_addr(src)
+                .to_addr(dst)
+                .build()
+                .expect("this faileddd"),
+        );
+    }
+    filter.load_on(ifindex);
+}
+
+*/
+
 use std::cmp::max;
 use std::fs::File;
 use std::io::Write;
@@ -7,7 +37,11 @@ use std::sync::Arc;
 use std::{thread, time};
 
 use crate::bpf::{BPFLink, Loader};
-use crate::bpfcode::{BPF_SRC, DEFINES, INCLUDE_HEADERS, VMLINUX};
+use crate::bpfcode::{
+    DEFINES, EVAL_BOTH_IPVER, EVAL_NOOP, EVAL_ONLY_IP4, EVAL_ONLY_IP6, INCLUDE_HEADERS,
+    IP4RULES_MAPS, IP4_EVAL_FUNCS, IP6RULES_MAPS, IP6_EVAL_FUNCS, PARSERS, PROGRAM, STRUCTS,
+    VMLINUX,
+};
 use crate::error::Error;
 use crate::rule::{Action, InnerRule, RawRule, Rule};
 use crate::{bpf, compile};
@@ -106,19 +140,39 @@ impl Filter {
         let mut src = File::create(path)?;
         src.write_all(INCLUDE_HEADERS.as_bytes())?;
         src.write_all(DEFINES.as_bytes())?;
-        let ipv4_rule_len = max(self.ipv4_rules.len(), 1);
-        let ipv6_rule_len = max(self.ipv6_rules.len(), 1);
         src.write_all(
             format!(
                 "\
             #define DEFAULT_ACTION {}\n\
             #define IPV4_RULE_COUNT {}\n\
             #define IPV6_RULE_COUNT {}\n",
-                self.default_act as u32, ipv4_rule_len, ipv6_rule_len
+                self.default_act as u32,
+                self.ipv4_rules.len(),
+                self.ipv6_rules.len()
             )
             .as_bytes(),
         )?;
-        src.write_all(BPF_SRC.as_bytes())?;
+        src.write_all(STRUCTS.as_bytes())?;
+        src.write_all(PARSERS.as_bytes())?;
+
+        if !self.ipv4_rules.is_empty() {
+            src.write_all(IP4RULES_MAPS.as_bytes())?;
+            src.write_all(IP4_EVAL_FUNCS.as_bytes())?;
+        }
+
+        if !self.ipv6_rules.is_empty() {
+            src.write_all(IP6RULES_MAPS.as_bytes())?;
+            src.write_all(IP6_EVAL_FUNCS.as_bytes())?;
+        }
+
+        match (self.ipv6_rules.is_empty(), self.ipv6_rules.is_empty()) {
+            (true, true) => src.write_all(EVAL_NOOP.as_bytes())?,
+            (true, false) => src.write_all(EVAL_ONLY_IP4.as_bytes())?,
+            (false, true) => src.write_all(EVAL_ONLY_IP6.as_bytes())?,
+            (false, false) => src.write_all(EVAL_BOTH_IPVER.as_bytes())?,
+        }
+
+        src.write_all(PROGRAM.as_bytes())?;
 
         Ok(src)
     }
