@@ -1,5 +1,5 @@
 [package]
-name = "libpf_rs"
+name = "libpf-rs"
 version = "0.1.0"
 edition = "2021"
 description = "Rust library for building BPF packet filters"

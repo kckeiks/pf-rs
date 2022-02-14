@@ -1,19 +1,19 @@
-pflib-rs
+libpf-rs
 --------
 [X] generate bpf.c file
 [X] add errors and err handling
 [] remove literals for constants in rule/filter.rs
 [] make Ipv4Rule and Ipv6Rule
-[] add tests for pflib
+[] add tests for libpf
 [] add support for subnets
 [X] add support for ports
 
 
 pf-rs
 -----
-[] pf uses pflib
+[] pf uses libpf
 [] add macro support for pf
 [] add command for pf
-[] improve pflib_rs api
+[] improve libpf api
 [] add tests
 

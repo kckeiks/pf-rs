@@ -3,9 +3,9 @@ use std::vec::IntoIter;
 
 use anyhow::{bail, Result};
 
-use pflib_rs::filter::Filter;
-use pflib_rs::rule::{Builder, Rule};
-use pflib_rs::BPFLink;
+use libpf_rs::filter::Filter;
+use libpf_rs::rule::{Builder, Rule};
+use libpf_rs::BPFLink;
 
 use crate::common::*;
 use crate::error::Error;
