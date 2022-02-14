@@ -1,8 +1,8 @@
+use crate::common::Token::{Port, To};
 use crate::common::*;
 use std::fs;
 use std::iter::Peekable;
 use std::vec::IntoIter;
-use crate::common::Token::{Port, To};
 
 pub struct Lexer {
     buf: Peekable<IntoIter<char>>,

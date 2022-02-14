@@ -8,6 +8,4 @@ pub enum Error {
     ParseError(String),
 }
 
-
-
 pub type Result<T> = result::Result<T, Error>;

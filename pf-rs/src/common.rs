@@ -23,5 +23,5 @@ pub enum Token {
     On(String),
     To(String),
     Value(String),
-    Port(String)
+    Port(String),
 }

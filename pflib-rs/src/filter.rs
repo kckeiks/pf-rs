@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::fs::File;
 use std::io::Write;
 use std::net::Ipv4Addr;
@@ -5,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{thread, time};
 
-use crate::bpf::Loader;
+use crate::bpf::{BPFLink, Loader};
 use crate::bpfcode::{BPF_SRC, DEFINES, INCLUDE_HEADERS, VMLINUX};
 use crate::error::Error;
 use crate::rule::{Action, InnerRule, RawRule, Rule};
@@ -38,7 +39,7 @@ impl Filter {
         }
     }
 
-    pub fn load_on(self, ifindex: i32) -> Result<()> {
+    pub fn load_on(self, ifindex: i32) -> Result<BPFLink> {
         let mut loader = self
             .generate_and_load()
             .map_err(|e| Error::Internal(e.to_string()))?;
@@ -48,7 +49,6 @@ impl Filter {
                 bincode2::serialize(&rule).map_err(|e| Error::Internal(e.to_string()))?;
             let index =
                 bincode2::serialize(&(i as u32)).map_err(|e| Error::Internal(e.to_string()))?;
-
             loader
                 .update_map("ipv4_rules", &index, &initial_value, 0)
                 .map_err(|e| Error::Internal(e.to_string()));
@@ -66,24 +66,11 @@ impl Filter {
         }
 
         // attach prog
-        let Link = loader
+        let link = loader
             .attach_prog(ifindex)
             .map_err(|e| Error::Internal(e.to_string()))?;
 
-        // /* keep it alive */
-        let running = Arc::new(AtomicBool::new(true));
-        let r = running.clone();
-        ctrlc::set_handler(move || {
-            r.store(false, Ordering::SeqCst);
-        })
-        .map_err(|e| Error::Internal(e.to_string()))?;
-
-        while running.load(Ordering::SeqCst) {
-            eprint!(".");
-            thread::sleep(time::Duration::from_secs(1));
-        }
-
-        Ok(())
+        Ok(link)
     }
 
     fn generate_and_load(&self) -> Result<Loader> {
@@ -119,15 +106,15 @@ impl Filter {
         let mut src = File::create(path)?;
         src.write_all(INCLUDE_HEADERS.as_bytes())?;
         src.write_all(DEFINES.as_bytes())?;
+        let ipv4_rule_len = max(self.ipv4_rules.len(), 1);
+        let ipv6_rule_len = max(self.ipv6_rules.len(), 1);
         src.write_all(
             format!(
                 "\
             #define DEFAULT_ACTION {}\n\
             #define IPV4_RULE_COUNT {}\n\
             #define IPV6_RULE_COUNT {}\n",
-                self.default_act as u32,
-                self.ipv4_rules.len(),
-                self.ipv6_rules.len()
+                self.default_act as u32, ipv4_rule_len, ipv6_rule_len
             )
             .as_bytes(),
         )?;

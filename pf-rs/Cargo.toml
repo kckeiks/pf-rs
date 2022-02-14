@@ -12,3 +12,4 @@ keywords = ["bpf", "ebpf", "pflib", "pf"]
 anyhow = "1.0.53"
 thiserror = "1.0.30"
 pflib-rs = { path = "../pflib-rs" }
+ctrlc = { version = "3.0", features = ["termination"] }
