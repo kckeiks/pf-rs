@@ -2,6 +2,8 @@ use std::fs;
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
+use anyhow::Result;
+
 use crate::common::Token;
 use crate::common::{BLOCK, FROM, ON, PASS, PORT, PROTO, TO};
 
@@ -16,7 +18,7 @@ impl Lexer {
         }
     }
 
-    pub fn from_file(file_path: &str) -> Result<Self, String> {
+    pub fn from_file(file_path: &str) -> Result<Self> {
         Ok(Self::from_str(
             &fs::read_to_string(file_path).expect("could not read file"),
         ))

@@ -196,7 +196,6 @@ static int eval_ipv6_rule(struct rule *rule, struct rule *pack)
            (is_zero(rule->ip6_addr.saddr) || equals(rule->ip6_addr.saddr, pack->ip6_addr.saddr)) &&
            (is_zero(rule->ip6_addr.daddr) || equals(rule->ip6_addr.daddr, pack->ip6_addr.daddr));
 }
-
 "##;
 
 pub static EVAL_BOTH_IPVER: &str = r#"
@@ -287,7 +286,7 @@ static int eval_rules(int ip_version, struct rule *packet)
     return -1;
 }"#;
 
-pub const PROGRAM: &str = r##"#
+pub const PROGRAM: &str = r##"
 static void print_rule(struct rule *rule)
 {
     bpf_printk("action [ %u ] (DROP: 1) (PASS: 2)", rule->action);

@@ -17,7 +17,7 @@ mod lexer;
 mod parser;
 
 #[derive(ClapParser)]
-#[clap(name = "rpf")]
+#[clap(name = "pf")]
 #[clap(author = "Fausto Miguel Guarniz <mi9uel9@gmail.com>")]
 #[clap(version = "0.1.0")]
 #[clap(about = "eBPF-based packet filter for Rust", long_about = None)]
@@ -33,7 +33,7 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
 
-    let mut config = PathBuf::from_str("/etc/pfrs/pfrs.conf").expect("Some error");
+    let mut config = PathBuf::from_str("/etc/pfrs/pfrs.conf").unwrap();
     if let Some(path) = cli.config.as_deref() {
         config = PathBuf::from(path);
     }
@@ -45,7 +45,13 @@ fn main() {
                 panic!("{}", e.to_string());
             }
 
-            let _ = load_filter(p.get_rules(), cli.ifindex);
+            let res = load_filter(p.get_rules(), cli.ifindex);
+
+            match res {
+                Ok(link) => print!("loaded"),
+                Err(e) => panic!("{}", e.to_string()),
+            }
+
             // /* keep it alive */
             let running = Arc::new(AtomicBool::new(true));
             let r = running.clone();
@@ -61,6 +67,6 @@ fn main() {
                 thread::sleep(time::Duration::from_secs(1));
             }
         }
-        Err(err) => panic!("{}", err),
+        Err(e) => panic!("{}", e.to_string()),
     }
 }
