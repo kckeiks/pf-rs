@@ -8,7 +8,6 @@ use libpf_rs::rule::{Builder, Rule};
 use libpf_rs::BPFLink;
 
 use crate::common::*;
-use crate::error::Error;
 
 pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,
@@ -23,79 +22,73 @@ impl Parser {
         }
     }
 
+    fn peek_then_read<P>(&mut self, p: P) -> Option<Token>
+    where
+        P: FnOnce(&Token) -> bool,
+    {
+        if let Some(token) = self.tokens.peek() {
+            if p(token) {
+                return Some(self.tokens.next().unwrap());
+            }
+        }
+        None
+    }
+
+    fn read_or_die<P>(&mut self, p: P, msg: &str) -> Token
+    where
+        P: FnOnce(&Token) -> bool,
+    {
+        match self.peek_then_read(p) {
+            Some(t) => t,
+            None => panic!("{}", msg),
+        }
+    }
+
+    fn read_expr(&mut self) -> Option<String> {
+        match self.tokens.next()? {
+            Token::Expr(s) => Some(s),
+            _ => None,
+        }
+    }
+
     fn parse_statement(&mut self) -> Result<()> {
         let mut builder = Builder::new();
-        match self.tokens.peek() {
-            Some(Token::Pass) => {
-                builder = builder.pass();
-            }
-            Some(Token::Block) => {
-                builder = builder.block();
-            }
-            Some(t) => bail!(Error::ParseError(format!(
-                "Expected `pass` or `block`, instead got {:?}",
-                t
-            ))),
-            None => bail!(Error::ParseError("Expected `pass` or `block`".to_string())),
-        }
-        self.tokens.next();
 
-        if let Some(Token::Proto(proto)) = self.tokens.peek() {
-            builder = builder.proto(proto);
-            self.tokens.next();
+        if self.peek_then_read(|t| matches!(t, Token::Pass)).is_some() {
+            builder = builder.block();
+        } else if self.peek_then_read(|t| matches!(t, Token::Block)).is_some() {
+            builder = builder.block();
+        } else {
+            bail!("expected `pass` or `block` token");
         }
 
-        // Use IPaddress to validate that it is valid
-        match self.tokens.peek() {
-            Some(Token::From(src)) => {
-                builder = builder.from_addr(src.as_str());
-            }
-            Some(t) => bail!(Error::ParseError(format!(
-                "expecting `from`, instead got {:?}",
-                t
-            ))),
-            None => bail!(Error::ParseError(
-                "expecting `from` - read useage".to_string()
-            )),
-        };
-        self.tokens.next();
+        self.read_or_die(|t| matches!(t, Token::Proto), "expected token `proto`");
+        builder = builder.proto(self.read_expr().expect("expected protocol after `proto`"));
 
-        // remove duplicate
-        if let Some(Token::Port(p)) = self.tokens.peek() {
-            builder = builder.from_port(
-                p.parse::<u16>()
-                    .map_err(|e| Error::ParseError(e.to_string()))?,
-            );
-            self.tokens.next();
-        }
-
-        match self.tokens.peek() {
-            Some(Token::To(dst)) => {
-                builder = builder.to_addr(dst.as_str());
-            }
-            Some(t) => bail!(Error::ParseError(format!(
-                "expecting `to`, instead got {:?}",
-                t
-            ))),
-            None => bail!(Error::ParseError(
-                "expecting `to` - read useage".to_string()
-            )),
-        };
-        self.tokens.next();
-
-        if let Some(Token::Port(p)) = self.tokens.peek() {
-            builder = builder.to_port(
-                p.parse::<u16>()
-                    .map_err(|e| Error::ParseError(e.to_string()))?,
-            );
-            self.tokens.next();
-        }
-
-        self.rules.push(
-            builder
-                .build()
-                .map_err(|e| Error::ParseError(e.to_string()))?,
+        self.read_or_die(|t| matches!(t, Token::From), "expected token `from`");
+        builder = builder.from_addr(
+            self.read_expr()
+                .expect("expected src IP after `to`")
+                .as_str(),
         );
+
+        if self.peek_then_read(|t| matches!(t, Token::Port)).is_some() {
+            let port = self.read_expr().expect("missing src port after `port`");
+            builder = builder.from_port(port.parse::<u16>()?);
+        }
+
+        self.read_or_die(|t| matches!(t, Token::From), "expected token `to`");
+        builder = builder.to_addr(
+            self.read_expr()
+                .expect("expected dst IP after `to`")
+                .as_str(),
+        );
+
+        if self.peek_then_read(|t| matches!(t, Token::Port)).is_some() {
+            let port = self.read_expr().expect("missing dst port after `port`");
+            builder = builder.to_port(port.parse::<u16>()?);
+        }
+
         Ok(())
     }
 

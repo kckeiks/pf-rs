@@ -5,14 +5,17 @@ use std::vec::IntoIter;
 use anyhow::Result;
 
 use crate::common::Token;
-use crate::common::{BLOCK, FROM, ON, PASS, PORT, PROTO, TO};
+use crate::common::{
+    ALL, ASSIGN, BLOCK, CLOSE_CBRACK, FROM, NL, ON, OPEN_CBRACK, PASS, PORT, PROTO, REPLACE_PREFIX,
+    TO,
+};
 
 pub struct Lexer {
     buf: Peekable<IntoIter<char>>,
 }
 
 impl Lexer {
-    pub fn from_str(str: &str) -> Lexer {
+    pub fn from_str(str: String) -> Lexer {
         Lexer {
             buf: str.chars().collect::<Vec<_>>().into_iter().peekable(),
         }
@@ -20,38 +23,88 @@ impl Lexer {
 
     pub fn from_file(file_path: &str) -> Result<Self> {
         Ok(Self::from_str(
-            &fs::read_to_string(file_path).expect("could not read file"),
+            fs::read_to_string(file_path)
+                .expect("could not read file")
+                .trim_matches(|c: char| c.is_ascii_whitespace())
+                .to_string(),
         ))
     }
 
-    fn skip_whitespace(&mut self) {
-        loop {
-            match self.buf.peek() {
-                Some(c) if c.is_ascii_whitespace() => {
-                    self.buf.next();
-                }
-                _ => {
-                    break;
-                }
-            }
-        }
+    fn read_ident(&mut self) -> Token {
+        self.consume_whitespace();
+        let ident = self.read_next().expect("invalid token `$`");
+        Token::Ident(ident)
     }
 
-    fn next_word(&mut self) -> String {
-        // skip white space first
-        self.skip_whitespace();
+    fn read_list_items(&mut self) -> Token {
+        let mut items: Vec<Token> = Vec::new();
 
-        let mut s = String::new();
         loop {
-            match self.buf.peek() {
-                Some(c) if !c.is_ascii_whitespace() => {
-                    s.push(*c);
-                    self.buf.next();
+            if let Some(c) = self.peek_then_read(|c| c == CLOSE_CBRACK || c == NL) {
+                if c == NL {
+                    panic!(r#"unexpected token `\n` in list"#)
                 }
-                _ => break,
+                break;
+            }
+
+            self.consume_whitespace();
+
+            let item = self.next_str_map_while(|c| !c.is_ascii_whitespace() && c != CLOSE_CBRACK);
+            if let Some(i) = item {
+                items.push(Token::Expr(i));
             }
         }
-        s
+
+        if items.is_empty() {
+            panic!("error: no tokens inside list")
+        }
+
+        Token::List(items)
+    }
+
+    fn peek_then_read<P>(&mut self, p: P) -> Option<char>
+    where
+        P: FnOnce(char) -> bool,
+    {
+        if let Some(&c) = self.buf.peek() {
+            if p(c) {
+                return Some(self.buf.next().unwrap());
+            }
+        }
+        None
+    }
+
+    fn next_str_map_while<P>(&mut self, p: P) -> Option<String>
+    where
+        P: Fn(char) -> bool,
+    {
+        // TODO: use as_ref and delete this method
+        let mut s = String::new();
+        while let Some(c) = self.buf.peek() {
+            if p(*c) {
+                s.push(*c);
+                self.buf.next();
+            } else {
+                break;
+            }
+        }
+        if s.is_empty() {
+            return None;
+        }
+        Some(s)
+    }
+
+    fn consume_whitespace(&mut self) {
+        self.next_str_map_while(|c| c.is_ascii_whitespace());
+    }
+
+    fn read_next(&mut self) -> Option<String> {
+        self.next_str_map_while(|c| !c.is_ascii_whitespace())
+    }
+
+    fn read_newline(&mut self) -> Token {
+        self.consume_whitespace();
+        Token::Nl
     }
 }
 
@@ -59,19 +112,37 @@ impl Iterator for Lexer {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let word = self.next_word();
-        if word.is_empty() {
-            return None;
+        // skip whitespace except new line char
+        self.next_str_map_while(|c| c.is_ascii_whitespace() && c != NL);
+
+        if self.peek_then_read(|c| c == ASSIGN).is_some() {
+            return Some(Token::Assign);
         }
-        match &word[..] {
+        if self.peek_then_read(|c| c == NL).is_some() {
+            return Some(self.read_newline());
+        }
+        if self.peek_then_read(|c| c == OPEN_CBRACK).is_some() {
+            return Some(self.read_list_items());
+        }
+        if self.peek_then_read(|c| c == REPLACE_PREFIX).is_some() {
+            return Some(self.read_ident());
+        }
+
+        let s = match self.read_next() {
+            Some(w) => w,
+            None => return None,
+        };
+
+        match &s[..] {
+            ALL => Some(Token::All),
             PASS => Some(Token::Pass),
             BLOCK => Some(Token::Block),
-            ON => Some(Token::On(self.next_word())),
-            PROTO => Some(Token::Proto(self.next_word())),
-            PORT => Some(Token::Port(self.next_word())),
-            FROM => Some(Token::From(self.next_word())),
-            TO => Some(Token::To(self.next_word())),
-            _ => None,
+            ON => Some(Token::On),
+            PROTO => Some(Token::Proto),
+            PORT => Some(Token::Port),
+            FROM => Some(Token::From),
+            TO => Some(Token::To),
+            exp => Some(Token::Expr(exp.to_string())),
         }
     }
 }
