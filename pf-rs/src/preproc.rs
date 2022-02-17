@@ -79,7 +79,6 @@ impl PreProc {
             }
         }
 
-        // TODO: remove
         for t in self.tokens.iter() {
             println!("{:?}", t);
         }
