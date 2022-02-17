@@ -12,7 +12,7 @@ pub const REPLACE_PREFIX: char = '$';
 pub const OPEN_CBRACK: char = '{';
 pub const CLOSE_CBRACK: char = '}';
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     All,
     Assign,

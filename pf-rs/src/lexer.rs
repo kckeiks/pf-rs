@@ -25,7 +25,7 @@ impl Lexer {
         Ok(Self::from_str(
             fs::read_to_string(file_path)
                 .expect("could not read file")
-                .trim_matches(|c: char| c.is_ascii_whitespace())
+                .trim_start_matches(|c: char| c.is_ascii_whitespace())
                 .to_string(),
         ))
     }
@@ -49,7 +49,7 @@ impl Lexer {
 
             self.consume_whitespace();
 
-            let item = self.next_str_map_while(|c| !c.is_ascii_whitespace() && c != CLOSE_CBRACK);
+            let item = self.lex_map_while(|c| !c.is_ascii_whitespace() && c != CLOSE_CBRACK);
             if let Some(i) = item {
                 items.push(Token::Expr(i));
             }
@@ -74,11 +74,11 @@ impl Lexer {
         None
     }
 
-    fn next_str_map_while<P>(&mut self, p: P) -> Option<String>
+    // this one peeks and does not consume if there is no match unlink iter.map_while
+    fn lex_map_while<P>(&mut self, p: P) -> Option<String>
     where
         P: Fn(char) -> bool,
     {
-        // TODO: use as_ref and delete this method
         let mut s = String::new();
         while let Some(c) = self.buf.peek() {
             if p(*c) {
@@ -88,18 +88,20 @@ impl Lexer {
                 break;
             }
         }
+
         if s.is_empty() {
             return None;
         }
+
         Some(s)
     }
 
     fn consume_whitespace(&mut self) {
-        self.next_str_map_while(|c| c.is_ascii_whitespace());
+        self.lex_map_while(|c| c.is_ascii_whitespace());
     }
 
     fn read_next(&mut self) -> Option<String> {
-        self.next_str_map_while(|c| !c.is_ascii_whitespace())
+        self.lex_map_while(|c| !c.is_ascii_whitespace())
     }
 
     fn read_newline(&mut self) -> Token {
@@ -113,7 +115,7 @@ impl Iterator for Lexer {
 
     fn next(&mut self) -> Option<Self::Item> {
         // skip whitespace except new line char
-        self.next_str_map_while(|c| c.is_ascii_whitespace() && c != NL);
+        self.lex_map_while(|c| c.is_ascii_whitespace() && c != NL);
 
         if self.peek_then_read(|c| c == ASSIGN).is_some() {
             return Some(Token::Assign);

@@ -5,6 +5,8 @@ use clap::Parser as ClapParser;
 
 use lexer::Lexer;
 
+use crate::preproc::PreProc;
+
 mod common;
 mod error;
 mod lexer;
@@ -34,9 +36,12 @@ fn main() {
     }
     let l = Lexer::from_file(config.as_path().to_str().unwrap()).unwrap();
 
-    for t in l.into_iter() {
-        println!("{:?}", t);
-    }
+    let mut p = PreProc::new(l);
+    p.preprocess();
+
+    // for t in l.into_iter() {
+    //     println!("{:?}", t);
+    // }
 
     //
     //
