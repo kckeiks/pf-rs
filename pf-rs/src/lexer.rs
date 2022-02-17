@@ -49,9 +49,9 @@ impl Lexer {
 
             self.consume_whitespace();
 
-            let item = self.lex_map_while(|c| !c.is_ascii_whitespace() && c != CLOSE_CBRACK);
+            let item = self.read_while(|c| !c.is_ascii_whitespace() && c != CLOSE_CBRACK);
             if let Some(i) = item {
-                items.push(Token::Expr(i));
+                items.push(Token::Arg(i));
             }
         }
 
@@ -60,6 +60,16 @@ impl Lexer {
         }
 
         Token::List(items)
+    }
+
+    fn interpret(&mut self, word: String) -> Token {
+        // there could be nl after this, we don't know what token word is
+        self.read_while(|c| c.is_ascii_whitespace() && c != NL);
+
+        if self.buf.peek().filter(|&&c| c == ASSIGN).is_some() {
+            return Token::Ident(word);
+        }
+        Token::Arg(word)
     }
 
     fn peek_then_read<P>(&mut self, p: P) -> Option<char>
@@ -75,7 +85,7 @@ impl Lexer {
     }
 
     // this one peeks and does not consume if there is no match unlink iter.map_while
-    fn lex_map_while<P>(&mut self, p: P) -> Option<String>
+    fn read_while<P>(&mut self, p: P) -> Option<String>
     where
         P: Fn(char) -> bool,
     {
@@ -96,12 +106,13 @@ impl Lexer {
         Some(s)
     }
 
+    // only use if you're absolutely sure that there should not be any ws including a \n
     fn consume_whitespace(&mut self) {
-        self.lex_map_while(|c| c.is_ascii_whitespace());
+        self.read_while(|c| c.is_ascii_whitespace());
     }
 
     fn read_next(&mut self) -> Option<String> {
-        self.lex_map_while(|c| !c.is_ascii_whitespace())
+        self.read_while(|c| !c.is_ascii_whitespace())
     }
 
     fn read_newline(&mut self) -> Token {
@@ -115,7 +126,7 @@ impl Iterator for Lexer {
 
     fn next(&mut self) -> Option<Self::Item> {
         // skip whitespace except new line char
-        self.lex_map_while(|c| c.is_ascii_whitespace() && c != NL);
+        self.read_while(|c| c.is_ascii_whitespace() && c != NL);
 
         if self.peek_then_read(|c| c == ASSIGN).is_some() {
             return Some(Token::Assign);
@@ -144,7 +155,7 @@ impl Iterator for Lexer {
             PORT => Some(Token::Port),
             FROM => Some(Token::From),
             TO => Some(Token::To),
-            exp => Some(Token::Expr(exp.to_string())),
+            _ => Some(self.interpret(s)),
         }
     }
 }

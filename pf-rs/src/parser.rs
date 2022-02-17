@@ -44,9 +44,9 @@ impl Parser {
         }
     }
 
-    fn read_expr(&mut self) -> Option<String> {
+    fn read_arg(&mut self) -> Option<String> {
         match self.tokens.next()? {
-            Token::Expr(s) => Some(s),
+            Token::Arg(s) => Some(s),
             _ => None,
         }
     }
@@ -63,29 +63,29 @@ impl Parser {
         }
 
         self.read_or_die(|t| matches!(t, Token::Proto), "expected token `proto`");
-        builder = builder.proto(self.read_expr().expect("expected protocol after `proto`"));
+        builder = builder.proto(self.read_arg().expect("expected protocol after `proto`"));
 
         self.read_or_die(|t| matches!(t, Token::From), "expected token `from`");
         builder = builder.from_addr(
-            self.read_expr()
+            self.read_arg()
                 .expect("expected src IP after `to`")
                 .as_str(),
         );
 
         if self.peek_then_read(|t| matches!(t, Token::Port)).is_some() {
-            let port = self.read_expr().expect("missing src port after `port`");
+            let port = self.read_arg().expect("missing src port after `port`");
             builder = builder.from_port(port.parse::<u16>()?);
         }
 
         self.read_or_die(|t| matches!(t, Token::From), "expected token `to`");
         builder = builder.to_addr(
-            self.read_expr()
+            self.read_arg()
                 .expect("expected dst IP after `to`")
                 .as_str(),
         );
 
         if self.peek_then_read(|t| matches!(t, Token::Port)).is_some() {
-            let port = self.read_expr().expect("missing dst port after `port`");
+            let port = self.read_arg().expect("missing dst port after `port`");
             builder = builder.to_port(port.parse::<u16>()?);
         }
 

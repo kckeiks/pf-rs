@@ -8,7 +8,7 @@ use crate::common::Token;
 use crate::Lexer;
 
 pub struct PreProc {
-    pub tokens: Vec<Token>,
+    tokens: Vec<Token>,
     buf: Peekable<IntoIter<Token>>,
 }
 

@@ -1,6 +1,6 @@
 
 
-block { 1 2 3 4 }  from { A B X } to { C D }
+block from { A B X } to { C D }
 block from 127.0.0.1 to 104.2.0.4
 
 
