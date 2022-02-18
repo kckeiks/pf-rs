@@ -1,1 +1,1 @@
-libpf-rs/.header/* linguist-vendored
+*.h linguist-language=Rust
