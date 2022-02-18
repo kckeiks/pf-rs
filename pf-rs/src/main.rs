@@ -29,6 +29,10 @@ struct Cli {
     /// path to config file
     #[clap(short, long, parse(from_os_str), value_name = "FILE")]
     config: Option<PathBuf>,
+
+    #[clap(short)]
+    /// generate C source code for BPF program along with .o file
+    generate: bool,
 }
 
 fn main() {
@@ -48,9 +52,16 @@ fn main() {
         panic!("{}", e.to_string());
     }
 
+    if cli.generate {
+        if let Err(e) = parser::generate_filter(p.get_rules()) {
+            panic!("{}", e.to_string());
+        }
+        return;
+    }
+
     let res = parser::load_filter(p.get_rules(), cli.ifindex);
     match res {
-        Ok(link) => print!("loaded"),
+        Ok(_) => print!("loaded"),
         Err(e) => panic!("{}", e.to_string()),
     }
 

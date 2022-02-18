@@ -102,12 +102,28 @@ impl Filter {
         Ok(link)
     }
 
+    pub fn generate_bpf_src(self) -> Result<()> {
+        let filename = "pfdebug";
+        let src_dir = Path::new("./target/");
+
+        let hdr_path = src_dir.join("vmlinux.h");
+        let hdr = generate_vmlinux_file(hdr_path.as_path())?;
+        let src_path = src_dir.join(format!("{}.bpf.c", filename));
+        self.generate_src_file(src_path.as_path())?;
+
+        let obj_path = src_dir.join(format!("{}.o", filename));
+
+        compile::compile(src_path.as_path(), obj_path.as_path())?;
+
+        Ok(())
+    }
+
     fn generate_and_load(&self) -> Result<BPFObj> {
         let filename = "pf";
         let src_dir = tempdir().expect("error creating temp dir");
 
         let hdr_path = src_dir.path().join("vmlinux.h");
-        let hdr = generate_vmlinux_file(hdr_path.as_path());
+        let hdr = generate_vmlinux_file(hdr_path.as_path())?;
         let src_path = src_dir.path().join(format!("{}.bpf.c", filename));
         let src = self.generate_src_file(src_path.as_path())?;
 

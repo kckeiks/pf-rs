@@ -115,3 +115,12 @@ pub fn load_filter(rules: Vec<Rule>, ifindex: i32) -> Result<BPFLink> {
     }
     Ok(f.load_on(ifindex)?)
 }
+
+pub fn generate_filter(rules: Vec<Rule>) -> Result<()> {
+    let mut f = Filter::new();
+    for r in rules.into_iter() {
+        f.add_rule(r);
+    }
+    f.generate_bpf_src();
+    Ok(())
+}
