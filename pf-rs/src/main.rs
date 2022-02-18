@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{thread, time};
 
+use anyhow::Context;
 use clap::Parser as ClapParser;
 
 use lexer::Lexer;
@@ -31,7 +32,7 @@ struct Cli {
     config: Option<PathBuf>,
 
     #[clap(short)]
-    /// generate C source code for BPF program along with .o file
+    /// Only generate .c and .o files for filter
     generate: bool,
 }
 
@@ -42,26 +43,27 @@ fn main() {
     if let Some(path) = cli.config.as_deref() {
         config = PathBuf::from(path);
     }
+
     let l = Lexer::from_file(config.as_path().to_str().unwrap()).unwrap();
 
     let mut p = PreProc::new(l);
-    let tokens = p.preprocess().unwrap().into_iter().peekable();
+    let tokens = p
+        .preprocess()
+        .expect("preprocessing failed")
+        .into_iter()
+        .peekable();
 
     let mut p = Parser::new(tokens);
-    if let Err(e) = p.parse_statements() {
-        panic!("{}", e.to_string());
-    }
+    p.parse_statements().expect("parsing failed");
 
     if cli.generate {
-        if let Err(e) = parser::generate_filter(p.get_rules()) {
-            panic!("{}", e.to_string());
-        }
+        parser::generate_filter(p.get_rules()).expect("generating filter failed");
         return;
     }
 
     let res = parser::load_filter(p.get_rules(), cli.ifindex);
     match res {
-        Ok(_) => print!("loaded"),
+        Ok(_) => println!("pf-rs: filter is attached"),
         Err(e) => panic!("{}", e.to_string()),
     }
 
@@ -69,11 +71,10 @@ fn main() {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
 
-    if let Err(e) = ctrlc::set_handler(move || {
+    ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
-    }) {
-        panic!("{}", e.to_string());
-    }
+    })
+    .unwrap();
 
     while running.load(Ordering::SeqCst) {
         eprint!(".");
