@@ -1,12 +1,8 @@
+BUF2 = {  10.11.4.2 10.11.5.2 }
 
-
-block from { A B X } to { C D }
-block from 127.0.0.1 to 104.2.0.4
-
-
-
+block from $BUF2 to 10.11.3.2
 block from 0:0:0:0:0:FFFF:204.152.189.116 to 0:0:0:0:0:FFFF:204.152.189.116
-block from 1:0:0:0:0:FFFF:204.152.189.116 to 2:0:0:0:0:FFFF:204.152.189.116
+
 
 
 

@@ -30,7 +30,7 @@ impl Lexer {
         ))
     }
 
-    fn read_ident(&mut self) -> Token {
+    fn read_def(&mut self) -> Token {
         self.consume_whitespace();
         let ident = self.read_next().expect("invalid token `$`");
         Token::Ident(ident)
@@ -51,7 +51,7 @@ impl Lexer {
 
             let item = self.read_while(|c| !c.is_ascii_whitespace() && c != CLOSE_CBRACK);
             if let Some(i) = item {
-                items.push(Token::Arg(i));
+                items.push(Token::Val(i));
             }
         }
 
@@ -67,9 +67,9 @@ impl Lexer {
         self.read_while(|c| c.is_ascii_whitespace() && c != NL);
 
         if self.buf.peek().filter(|&&c| c == ASSIGN).is_some() {
-            return Token::Ident(word);
+            return Token::Def(word);
         }
-        Token::Arg(word)
+        Token::Val(word)
     }
 
     fn peek_then_read<P>(&mut self, p: P) -> Option<char>
@@ -138,7 +138,7 @@ impl Iterator for Lexer {
             return Some(self.read_list_items());
         }
         if self.peek_then_read(|c| c == REPLACE_PREFIX).is_some() {
-            return Some(self.read_ident());
+            return Some(self.read_def());
         }
 
         let s = match self.read_next() {

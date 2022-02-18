@@ -24,7 +24,8 @@ pub enum Token {
     On,
     To,
     Port,
-    Arg(String),
+    Val(String),
     List(Vec<Self>),
+    Def(String),
     Ident(String),
 }

@@ -1,10 +1,14 @@
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::{thread, time};
 
 use clap::Parser as ClapParser;
 
 use lexer::Lexer;
 
+use crate::parser::Parser;
 use crate::preproc::PreProc;
 
 mod common;
@@ -37,43 +41,31 @@ fn main() {
     let l = Lexer::from_file(config.as_path().to_str().unwrap()).unwrap();
 
     let mut p = PreProc::new(l);
-    p.preprocess();
+    let tokens = p.preprocess().unwrap().into_iter().peekable();
 
-    // for t in l.into_iter() {
-    //     println!("{:?}", t);
-    // }
+    let mut p = Parser::new(tokens);
+    if let Err(e) = p.parse_statements() {
+        panic!("{}", e.to_string());
+    }
 
-    //
-    //
-    // match Lexer::from_file(config.as_path().to_str().unwrap()) {
-    //     Ok(lex) => {
-    //         let mut p = Parser::new(lex.collect::<Vec<_>>().into_iter().peekable());
-    //         if let Err(e) = p.parse_statements() {
-    //             panic!("{}", e.to_string());
-    //         }
-    //
-    //         let res = load_filter(p.get_rules(), cli.ifindex);
-    //
-    //         match res {
-    //             Ok(link) => print!("loaded"),
-    //             Err(e) => panic!("{}", e.to_string()),
-    //         }
-    //
-    //         // /* keep it alive */
-    //         let running = Arc::new(AtomicBool::new(true));
-    //         let r = running.clone();
-    //
-    //         if let Err(e) = ctrlc::set_handler(move || {
-    //             r.store(false, Ordering::SeqCst);
-    //         }) {
-    //             panic!("{}", e.to_string());
-    //         }
-    //
-    //         while running.load(Ordering::SeqCst) {
-    //             eprint!(".");
-    //             thread::sleep(time::Duration::from_secs(1));
-    //         }
-    //     }
-    //     Err(e) => panic!("{}", e.to_string()),
-    // }
+    let res = parser::load_filter(p.get_rules(), cli.ifindex);
+    match res {
+        Ok(link) => print!("loaded"),
+        Err(e) => panic!("{}", e.to_string()),
+    }
+
+    // /* keep it alive */
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+
+    if let Err(e) = ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    }) {
+        panic!("{}", e.to_string());
+    }
+
+    while running.load(Ordering::SeqCst) {
+        eprint!(".");
+        thread::sleep(time::Duration::from_secs(1));
+    }
 }

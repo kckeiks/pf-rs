@@ -46,7 +46,7 @@ impl Parser {
 
     fn read_arg(&mut self) -> Option<String> {
         match self.tokens.next()? {
-            Token::Arg(s) => Some(s),
+            Token::Val(s) => Some(s),
             _ => None,
         }
     }
@@ -55,15 +55,15 @@ impl Parser {
         let mut builder = Builder::new();
 
         if self.peek_then_read(|t| matches!(t, Token::Pass)).is_some() {
-            builder = builder.block();
+            builder = builder.pass();
         } else if self.peek_then_read(|t| matches!(t, Token::Block)).is_some() {
             builder = builder.block();
         } else {
             bail!("expected `pass` or `block` token");
         }
 
-        self.read_or_die(|t| matches!(t, Token::Proto), "expected token `proto`");
-        builder = builder.proto(self.read_arg().expect("expected protocol after `proto`"));
+        // self.read_or_die(|t| matches!(t, Token::Proto), "expected token `proto`");
+        // builder = builder.proto(self.read_arg().expect("expected protocol after `proto`"));
 
         self.read_or_die(|t| matches!(t, Token::From), "expected token `from`");
         builder = builder.from_addr(
@@ -77,7 +77,7 @@ impl Parser {
             builder = builder.from_port(port.parse::<u16>()?);
         }
 
-        self.read_or_die(|t| matches!(t, Token::From), "expected token `to`");
+        self.read_or_die(|t| matches!(t, Token::To), "expected token `to`");
         builder = builder.to_addr(
             self.read_arg()
                 .expect("expected dst IP after `to`")
@@ -89,6 +89,7 @@ impl Parser {
             builder = builder.to_port(port.parse::<u16>()?);
         }
 
+        self.rules.push(builder.build()?);
         Ok(())
     }
 

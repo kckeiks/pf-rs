@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
@@ -10,6 +10,7 @@ use crate::Lexer;
 pub struct PreProc {
     tokens: Vec<Token>,
     buf: Peekable<IntoIter<Token>>,
+    idents: HashMap<String, Token>,
 }
 
 impl PreProc {
@@ -17,6 +18,7 @@ impl PreProc {
         PreProc {
             tokens: Vec::new(),
             buf: lex.collect::<Vec<_>>().into_iter().peekable(),
+            idents: HashMap::new(),
         }
     }
 
@@ -40,8 +42,10 @@ impl PreProc {
         Ok(())
     }
 
-    fn process_line(&mut self, mut line: Vec<Token>) -> Result<()> {
+    fn process_line(&mut self, raw_line: Vec<Token>) -> Result<()> {
         let mut buf: Vec<Vec<Token>> = Vec::new();
+
+        let mut line = self.process_macros(raw_line)?;
 
         for token in line.iter() {
             if let Token::List(token_vec) = token {
@@ -55,6 +59,33 @@ impl PreProc {
             self.tokens.append(&mut line);
         }
         Ok(())
+    }
+
+    fn process_macros(&mut self, line: Vec<Token>) -> Result<Vec<Token>> {
+        let mut res = Vec::new();
+
+        let mut tokens = line.into_iter().peekable();
+
+        while let Some(t) = tokens.next() {
+            if let Token::Ident(name) = t {
+                let msg = format!("unknown identifier {}", name.as_str());
+                let val = self.idents.get(name.as_str()).expect(msg.as_str());
+                res.push(val.clone());
+            } else if let Token::Def(mut name) = t {
+                tokens
+                    .next()
+                    .filter(|t| matches!(t, Token::Assign))
+                    .expect("expected `=` in macro declaration"); // this will never panic
+
+                let msg = format!("invalid `{} = [no value]`", name.as_str());
+                let token = tokens.next().expect(msg.as_str());
+                self.idents.insert(name, token);
+            } else {
+                res.push(t);
+            }
+        }
+
+        Ok(res)
     }
 
     pub fn preprocess(mut self) -> Result<Vec<Token>> {
@@ -79,9 +110,6 @@ impl PreProc {
             }
         }
 
-        for t in self.tokens.iter() {
-            println!("{:?}", t);
-        }
         Ok(self.tokens)
     }
 }

@@ -114,7 +114,7 @@ impl Builder {
                 _ => {
                     return Err(Error::InvalidInput(
                         "invalid protocol must be `tcp` or `udp`".to_string(),
-                    ))
+                    ));
                 }
             };
             Ok(parts)
