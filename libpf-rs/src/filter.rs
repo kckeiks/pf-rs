@@ -34,7 +34,7 @@ use std::path::Path;
 
 use tempfile::tempdir;
 
-use crate::bpf::{BPFLink, Loader};
+use crate::bpf::{BPFLink, BPFObj};
 use crate::bpfcode::{
     DEFINES, EVAL_BOTH_IPVER, EVAL_NOOP, EVAL_ONLY_IP4, EVAL_ONLY_IP6, INCLUDE_HEADERS,
     IP4RULES_MAPS, IP4_EVAL_FUNCS, IP6RULES_MAPS, IP6_EVAL_FUNCS, PARSERS, PROGRAM, STRUCTS,
@@ -61,7 +61,7 @@ impl Filter {
     }
 
     pub fn add_rule(&mut self, rule: Rule) {
-        match rule.read_rule() {
+        match rule.get_rule() {
             InnerRule::IPv6Rule(r) => self.ipv6_rules.push(r),
             InnerRule::IPv4Rule(r) => self.ipv4_rules.push(r),
             InnerRule::DefaultRule(a) => self.default_act = a,
@@ -69,7 +69,7 @@ impl Filter {
     }
 
     pub fn load_on(self, ifindex: i32) -> Result<BPFLink> {
-        let mut loader = self
+        let mut bpf_obj = self
             .generate_and_load()
             .map_err(|e| Error::Internal(e.to_string()))?;
 
@@ -78,7 +78,7 @@ impl Filter {
                 bincode2::serialize(&rule).map_err(|e| Error::Internal(e.to_string()))?;
             let index =
                 bincode2::serialize(&(i as u32)).map_err(|e| Error::Internal(e.to_string()))?;
-            loader
+            bpf_obj
                 .update_map("ipv4_rules", &index, &initial_value, 0)
                 .map_err(|e| Error::Internal(e.to_string()))?;
         }
@@ -89,22 +89,22 @@ impl Filter {
             let index =
                 bincode2::serialize(&(i as u32)).map_err(|e| Error::Internal(e.to_string()))?;
 
-            loader
+            bpf_obj
                 .update_map("ipv6_rules", &index, &initial_value, 0)
                 .map_err(|e| Error::Internal(e.to_string()))?;
         }
 
         // attach prog
-        let link = loader
+        let link = bpf_obj
             .attach_prog(ifindex)
             .map_err(|e| Error::Internal(e.to_string()))?;
 
         Ok(link)
     }
 
-    fn generate_and_load(&self) -> Result<Loader> {
+    fn generate_and_load(&self) -> Result<BPFObj> {
         let filename = "pf";
-        let src_dir = tempdir().map_err(|e| Error::Build(e.to_string()))?;
+        let src_dir = tempdir().expect("error creating temp dir");
 
         let hdr_path = src_dir.path().join("vmlinux.h");
         let hdr = generate_vmlinux_file(hdr_path.as_path());
@@ -116,8 +116,8 @@ impl Filter {
 
         compile::compile(src_path.as_path(), obj_path.as_path())?;
 
-        let loader =
-            bpf::Loader::load_from_file(obj_path).map_err(|e| Error::Internal(e.to_string()))?;
+        let bpf_obj =
+            bpf::BPFObj::load_from_file(obj_path).map_err(|e| Error::Internal(e.to_string()))?;
 
         drop(hdr);
         drop(src);
@@ -129,7 +129,7 @@ impl Filter {
             println!("error closing dir: {}", e.to_string());
         }
 
-        Ok(loader)
+        Ok(bpf_obj)
     }
 
     fn generate_src_file(&self, path: &Path) -> Result<File> {
@@ -170,7 +170,7 @@ impl Filter {
                 .map_err(|e| Error::Internal(e.to_string()))?;
         }
 
-        match (self.ipv6_rules.is_empty(), self.ipv6_rules.is_empty()) {
+        match (self.ipv6_rules.is_empty(), self.ipv4_rules.is_empty()) {
             (true, true) => src
                 .write_all(EVAL_NOOP.as_bytes())
                 .map_err(|e| Error::Internal(e.to_string()))?,

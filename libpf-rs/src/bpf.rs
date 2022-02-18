@@ -11,22 +11,22 @@ pub struct BPFLink {
     ptr: *mut libbpf_sys::bpf_link,
 }
 
-pub struct Loader {
+pub struct BPFObj {
     ptr: *mut libbpf_sys::bpf_object,
     progs: Vec<BPFProg>,
     maps: HashMap<String, BPFMap>,
 }
 
-impl Loader {
+impl BPFObj {
     pub fn load_from_file<T: AsRef<Path>>(src: T) -> Result<Self> {
-        let obj_ptr = Loader::open_file(src.as_ref())?;
+        let obj_ptr = BPFObj::open_file(src.as_ref())?;
 
         let res = unsafe { libbpf_sys::bpf_object__load(obj_ptr) };
         if res != 0 {
             bail!("error {}: failed to load bpf object", -res);
         }
 
-        let mut obj = Loader {
+        let mut obj = BPFObj {
             ptr: obj_ptr,
             progs: Vec::new(),
             maps: HashMap::new(),
@@ -96,7 +96,7 @@ impl Loader {
         let obj = unsafe { libbpf_sys::bpf_object__open_file(c_name.as_ptr(), &obj_opts) };
         let err = unsafe { libbpf_sys::libbpf_get_error(obj as *const _) };
         if err != 0 {
-            bail!("error {}: could not attach prog to xdp hook", err as i32);
+            bail!("bpf_object__open_file failed with err {}", err as i32);
         }
 
         Ok(obj)
@@ -124,7 +124,7 @@ impl Loader {
     }
 }
 
-impl Drop for Loader {
+impl Drop for BPFObj {
     fn drop(&mut self) {
         unsafe {
             libbpf_sys::bpf_object__close(self.ptr);

@@ -45,7 +45,7 @@ pub struct Rule {
 
 impl Rule {
     // TODO: need at least rust 1.18
-    pub(crate) fn read_rule(self) -> InnerRule {
+    pub(crate) fn get_rule(self) -> InnerRule {
         self.inner
     }
 }
