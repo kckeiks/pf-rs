@@ -47,11 +47,7 @@ fn main() {
     let l = Lexer::from_file(config.as_path().to_str().unwrap()).unwrap();
 
     let mut p = PreProc::new(l);
-    let tokens = p
-        .preprocess()
-        .expect("preprocessing failed")
-        .into_iter()
-        .peekable();
+    let tokens = p.preprocess().expect("preprocessing failed");
 
     let mut p = Parser::new(tokens);
     p.parse_statements().expect("parsing failed");

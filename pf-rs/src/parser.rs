@@ -15,9 +15,9 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new(tokens: Peekable<IntoIter<Token>>) -> Self {
+    pub fn new(tokens: Vec<Token>) -> Self {
         Parser {
-            tokens,
+            tokens: tokens.into_iter().peekable(),
             rules: Vec::new(),
         }
     }
@@ -121,6 +121,6 @@ pub fn generate_filter(rules: Vec<Rule>) -> Result<()> {
     for r in rules.into_iter() {
         f.add_rule(r);
     }
-    f.generate_bpf_src();
+    f.generate_src();
     Ok(())
 }

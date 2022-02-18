@@ -12,7 +12,7 @@ pub fn compile(src: &Path, dst: &Path) -> Result<()> {
     let clang = PathBuf::from("clang");
     let mut cmd = Command::new(clang.as_os_str());
 
-    let libbpf_dir = tmp_setup_libbpf_headers()?;
+    let libbpf_dir = setup_libbpf_headers()?;
     let options = format!("-I{}", libbpf_dir.as_ref().to_str().unwrap());
     cmd.args(options.split_whitespace());
 
@@ -44,7 +44,7 @@ pub fn compile(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn tmp_setup_libbpf_headers() -> Result<TempDir> {
+pub fn setup_libbpf_headers() -> Result<TempDir> {
     let tmpdir = tempdir().map_err(|e| Error::Build(e.to_string()))?;
     let hdrs_dir = tmpdir.path().join("bpf");
     fs::create_dir_all(&hdrs_dir).map_err(|e| Error::Build(e.to_string()))?;

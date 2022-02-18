@@ -102,7 +102,7 @@ impl Filter {
         Ok(link)
     }
 
-    pub fn generate_bpf_src(self) -> Result<()> {
+    pub fn generate_src(self) -> Result<()> {
         let filename = "pfdebug";
         let src_dir = Path::new("./target/");
 
