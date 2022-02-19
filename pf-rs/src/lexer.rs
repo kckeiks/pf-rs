@@ -30,7 +30,7 @@ impl Lexer {
         ))
     }
 
-    fn read_def(&mut self) -> Token {
+    fn read_ident(&mut self) -> Token {
         self.consume_whitespace();
         let ident = self.read_next().expect("invalid token `$`");
         Token::Ident(ident)
@@ -39,15 +39,24 @@ impl Lexer {
     fn read_list_items(&mut self) -> Token {
         let mut items: Vec<Token> = Vec::new();
 
+        // consume `{` if there is one
+        // unit tests include open curly brace
+        if let Some(c) = self.buf.peek() {
+            if *c == OPEN_CBRACK {
+                self.buf.next();
+            }
+        }
+
         loop {
-            if let Some(c) = self.peek_then_read(|c| c == CLOSE_CBRACK || c == NL) {
-                if c == NL {
-                    panic!(r#"unexpected token `\n` in list"#)
-                }
-                break;
+            self.read_while(|c| c.is_ascii_whitespace() && c != NL);
+
+            if self.peek_then_read(|c| c == NL).is_some() {
+                panic!(r#"unexpected token `\n` in list"#)
             }
 
-            self.consume_whitespace();
+            if self.peek_then_read(|c| c == CLOSE_CBRACK).is_some() {
+                break;
+            }
 
             let item = self.read_while(|c| !c.is_ascii_whitespace() && c != CLOSE_CBRACK);
             if let Some(i) = item {
@@ -138,7 +147,7 @@ impl Iterator for Lexer {
             return Some(self.read_list_items());
         }
         if self.peek_then_read(|c| c == REPLACE_PREFIX).is_some() {
-            return Some(self.read_def());
+            return Some(self.read_ident());
         }
 
         let s = match self.read_next() {
@@ -158,4 +167,189 @@ impl Iterator for Lexer {
             _ => Some(self.interpret(s)),
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Lexer;
+    use super::Token::{Assign, Block, Def, From, Ident, List, Nl, Pass, Proto, To, Val};
+
+    macro_rules! test_lexer {
+        ($name:ident, $input:expr, $expect:expr) => {
+            #[test]
+            fn $name() {
+                let rule = String::from($input);
+                let lex = Lexer::from_str(rule.clone());
+                assert_eq!(
+                    lex.into_iter().collect::<Vec<_>>(),
+                    $expect,
+                    "input was `{}`",
+                    rule
+                )
+            }
+        };
+    }
+
+    macro_rules! test_list {
+        ($name:ident, $input:expr, $expect:expr) => {
+            #[test]
+            fn $name() {
+                let rule = String::from($input);
+                let mut lex = Lexer::from_str(rule.clone());
+                assert_eq!(lex.read_list_items(), $expect, "input was `{}`", rule)
+            }
+        };
+        ($name:ident, $input:expr) => {
+            #[test]
+            #[should_panic]
+            fn $name() {
+                let rule = String::from($input);
+                let mut lex = Lexer::from_str(rule.clone());
+                lex.read_list_items();
+            }
+        };
+    }
+
+    macro_rules! test_next {
+        ($name:ident, $input:expr, $expect:expr) => {
+            #[test]
+            fn $name() {
+                let input = String::from($input);
+                let mut lex = Lexer::from_str(input.clone());
+                assert_eq!(lex.next(), Some($expect), "input was `{}`", input);
+            }
+        };
+        ($name:ident, $input:expr) => {
+            #[test]
+            #[should_panic]
+            fn $name() {
+                let input = String::from($input);
+                let mut lex = Lexer::from_str(input.clone());
+                lex.next();
+            }
+        };
+    }
+
+    test_list!(
+        read_list_items_one_elem1,
+        "{ a }",
+        List(vec![Val("a".to_string())])
+    );
+    test_list!(
+        read_list_items_one_elem2,
+        "{b}",
+        List(vec![Val("b".to_string())])
+    );
+
+    test_list!(
+        read_list_items_mul_elem1,
+        "{ a  b }",
+        List(vec![Val("a".to_string()), Val("b".to_string())])
+    );
+    test_list!(
+        read_list_items_mul_elem2,
+        "{a  b}",
+        List(vec![Val("a".to_string()), Val("b".to_string())])
+    );
+
+    test_list!(read_list_fail1, "{ a \n }");
+    test_list!(read_list_fail2, "{ \n a }");
+    test_list!(read_list_fail3, "{ }");
+    test_list!(read_list_fail4, "{}");
+
+    test_next!(next_pass, "pass", Pass);
+    test_next!(next_block, "block", Block);
+    test_next!(next_proto, "proto", Proto);
+    test_next!(next_from, "from", From);
+    test_next!(next_to, "to", To);
+    test_next!(next_assign, "=", Assign);
+    test_next!(next_nl, "\n", Nl);
+    test_next!(next_def, "var = val", Def("var".to_string()));
+    test_next!(next_ident, "$var", Ident("var".to_string()));
+    test_next!(next_val, "var val", Val("var".to_string()));
+    test_next!(
+        next_list,
+        "{ a b }",
+        List(vec![Val("a".to_string()), Val("b".to_string())])
+    );
+
+    test_next!(next_ident_fail1, "$");
+    test_next!(next_ident_fail2, "$ ");
+    test_next!(next_ident_fail3, "$\n");
+
+    test_lexer!(
+        lex_rule1,
+        "block from sip to dip",
+        vec![
+            Block,
+            From,
+            Val("sip".to_string()),
+            To,
+            Val("dip".to_string())
+        ]
+    );
+
+    test_lexer!(
+        lex_rule2,
+        "block proto udp from sip to dip",
+        vec![
+            Block,
+            Proto,
+            Val("udp".to_string()),
+            From,
+            Val("sip".to_string()),
+            To,
+            Val("dip".to_string())
+        ]
+    );
+
+    test_lexer!(
+        lex_rule_with_list,
+        "block from { a b } to ip",
+        vec![
+            Block,
+            From,
+            List(vec![Val("a".to_string()), Val("b".to_string())]),
+            To,
+            Val("ip".to_string())
+        ]
+    );
+
+    test_lexer!(
+        lex_rule_with_ident,
+        "block proto $var1 from $var2 to $var3",
+        vec![
+            Block,
+            Proto,
+            Ident("var1".to_string()),
+            From,
+            Ident("var2".to_string()),
+            To,
+            Ident("var3".to_string())
+        ]
+    );
+
+    test_lexer!(
+        lex_with_multiple_new_lines,
+        "\n\n block proto a from b to c \n\n\n block proto d from e to f \n\n\n",
+        vec![
+            Nl,
+            Block,
+            Proto,
+            Val("a".to_string()),
+            From,
+            Val("b".to_string()),
+            To,
+            Val("c".to_string()),
+            Nl,
+            Block,
+            Proto,
+            Val("d".to_string()),
+            From,
+            Val("e".to_string()),
+            To,
+            Val("f".to_string()),
+            Nl,
+        ]
+    );
 }
