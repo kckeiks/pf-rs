@@ -34,8 +34,8 @@ Integration with [libbpf-rs](https://github.com/libbpf/libbpf-rs) is planned onc
 ### Example
 
 Given the code below, `libpf-rs` will create an eBPF program 
-that filters incoming packets based on the addresses and 
-load it on the device with index 4.
+that filters (blocks) incoming packets based on the given addresses 
+and loads it on the device with index 4.
 
 ```Rust
 use libpf_rs::filter::Filter;
