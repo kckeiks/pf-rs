@@ -34,10 +34,13 @@ Integration with [libbpf-rs](https://github.com/libbpf/libbpf-rs) is planned onc
 ### Example
 
 Given the code below, `libpf-rs` will create an eBPF program 
-that filter incoming packets based on the addresses and 
+that filters incoming packets based on the addresses and 
 load it on the device with index 4.
 
 ```Rust
+use libpf_rs::filter::Filter;
+use libpf_rs::rule::Builder;
+
 fn main() {
     let ifindex: i32 = 4;
     let addrs = [
@@ -48,25 +51,30 @@ fn main() {
         ("0:0:0:0:0:FFFF:204.152.189.116", "1:0:0:0:0:0:0:8"),
         ("0:0:0:0:0:FFFF:204.152.189.116", "1:0:0:0:0:0:0:8"),
     ];
-    
-    let mut filter = filter::Filter::new();
-    
+
+    let mut filter = Filter::new();
+
     for (src, dst) in addrs.into_iter() {
         filter.add_rule(
             Builder::new()
-            .block()
-            .from_addr(src)
-            .to_addr(dst)
-            .build()
-            .unwrap()
+                .block()
+                .from_addr(src)
+                .to_addr(dst)
+                .build()
+                .unwrap(),
         );
     }
+
+    let _link = filter.load_on(ifindex);
     
-    filter.load_on(ifindex);
+    // load_on() returns bpf_link
+    // eBPF program will be detached once link is dropped
+    // please see libbpf's doc for more info
+    loop {}
 }
 ```
 
-## Feature Checklist
+# Feature Checklist
 
 Some of these are WIP.
 
