@@ -4,8 +4,8 @@ use std::vec::IntoIter;
 
 use anyhow::Result;
 
-use crate::common::Token;
-use crate::common::{
+use crate::token::Token;
+use crate::token::{
     ALL, ASSIGN, BLOCK, CLOSE_CBRACK, FROM, NL, ON, OPEN_CBRACK, PASS, PORT, PROTO, REPLACE_PREFIX,
     TO,
 };

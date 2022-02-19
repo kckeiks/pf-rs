@@ -4,7 +4,7 @@ use std::vec::IntoIter;
 
 use anyhow::Result;
 
-use crate::common::Token;
+use crate::token::Token;
 use crate::Lexer;
 
 pub struct PreProc {
@@ -71,7 +71,7 @@ impl PreProc {
                 let msg = format!("unknown identifier {}", name.as_str());
                 let val = self.idents.get(name.as_str()).expect(msg.as_str());
                 res.push(val.clone());
-            } else if let Token::Def(mut name) = t {
+            } else if let Token::Def(name) = t {
                 tokens
                     .next()
                     .filter(|t| matches!(t, Token::Assign))
@@ -99,7 +99,7 @@ impl PreProc {
             let token = self.buf.next();
 
             if let Some(Token::Nl) = token {
-                self.process_line(buf);
+                self.process_line(buf)?;
                 buf = Vec::new();
                 continue;
             }

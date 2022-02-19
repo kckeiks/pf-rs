@@ -4,9 +4,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use anyhow::{bail, Result};
 use tempfile::{tempdir, TempDir};
 
-use crate::error::{Error, Result};
+use crate::error::Error;
 
 pub fn compile(src: &Path, dst: &Path) -> Result<()> {
     let clang = PathBuf::from("clang");
@@ -35,7 +36,7 @@ pub fn compile(src: &Path, dst: &Path) -> Result<()> {
     let output = cmd.output().map_err(|e| Error::Build(e.to_string()))?;
 
     if !output.status.success() {
-        return Err(Error::Build(format!(
+        bail!(Error::Build(format!(
             "clang failed to compile BPF program: {:?}",
             output
         )));

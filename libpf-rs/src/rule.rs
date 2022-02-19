@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
 
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Error, Result};
+use crate::error::Error;
 use crate::ip::{get_zero_addr, ToSockAddr};
 
 #[derive(Debug)]
@@ -112,7 +113,7 @@ impl Builder {
                 "udp" => Proto::UDP,
                 "tcp" => Proto::TCP,
                 _ => {
-                    return Err(Error::InvalidInput(
+                    bail!(Error::InvalidInput(
                         "invalid protocol must be `tcp` or `udp`".to_string(),
                     ));
                 }
@@ -215,7 +216,7 @@ impl Builder {
                 (Some(s), Some(d)) => {
                     // if we have src and dst then they should be of the same ip version
                     if s.is_ipv6() != d.is_ipv6() {
-                        return Err(Error::Build(
+                        bail!(Error::Build(
                             "src & dst IP versions do not match".to_string(),
                         ));
                     }
@@ -227,7 +228,7 @@ impl Builder {
             }
 
             if is_ipv6 != parts.is_ipv6 {
-                return Err(Error::Build("error: IP version mismatch".to_string()));
+                bail!(Error::Build("error: IP version mismatch".to_string()));
             }
 
             if let Some(SocketAddr::V4(a)) = parts.saddr {

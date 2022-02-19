@@ -32,6 +32,7 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
+use anyhow::Result;
 use tempfile::tempdir;
 
 use crate::bpf::{BPFLink, BPFObj};
@@ -40,7 +41,7 @@ use crate::bpfcode::{
     IP4RULES_MAPS, IP4_EVAL_FUNCS, IP6RULES_MAPS, IP6_EVAL_FUNCS, PARSERS, PROGRAM, STRUCTS,
     VMLINUX,
 };
-use crate::error::{Error, Result};
+use crate::error::Error;
 use crate::rule::{Action, InnerRule, RawRule, Rule};
 use crate::{bpf, compile};
 
@@ -107,7 +108,7 @@ impl Filter {
         let src_dir = Path::new("./target/");
 
         let hdr_path = src_dir.join("vmlinux.h");
-        let hdr = generate_vmlinux_file(hdr_path.as_path())?;
+        let _hdr = generate_vmlinux_file(hdr_path.as_path())?;
         let src_path = src_dir.join(format!("{}.bpf.c", filename));
         self.generate_src_file(src_path.as_path())?;
 

@@ -1,5 +1,3 @@
-use std::result;
-
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -11,5 +9,3 @@ pub enum Error {
     #[error("invalid input: {0}")]
     InvalidInput(String),
 }
-
-pub type Result<T> = result::Result<T, Error>;

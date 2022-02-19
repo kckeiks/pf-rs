@@ -4,19 +4,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{thread, time};
 
-use anyhow::Context;
+use anyhow::{anyhow, Result};
 use clap::Parser as ClapParser;
 
 use lexer::Lexer;
+use libpf_rs::filter::Filter;
+use libpf_rs::rule::Rule;
+use libpf_rs::BPFLink;
 
 use crate::parser::Parser;
 use crate::preproc::PreProc;
 
-mod common;
-mod error;
 mod lexer;
 mod parser;
 mod preproc;
+mod token;
 
 #[derive(ClapParser)]
 #[clap(name = "pf")]
@@ -46,18 +48,18 @@ fn main() {
 
     let l = Lexer::from_file(config.as_path().to_str().unwrap()).unwrap();
 
-    let mut p = PreProc::new(l);
-    let tokens = p.preprocess().expect("preprocessing failed");
+    let pre_proc = PreProc::new(l);
+    let tokens = pre_proc.preprocess().unwrap();
 
-    let mut p = Parser::new(tokens);
-    p.parse_statements().expect("parsing failed");
+    let parser = Parser::new(tokens);
+    let rules = parser.parse_statements().unwrap();
 
     if cli.generate {
-        parser::generate_filter(p.get_rules()).expect("generating filter failed");
+        generate_filter(rules).unwrap();
         return;
     }
 
-    let res = parser::load_filter(p.get_rules(), cli.ifindex);
+    let res = load_filter(rules, cli.ifindex);
     match res {
         Ok(_) => println!("pf-rs: filter is attached"),
         Err(e) => panic!("{}", e.to_string()),
@@ -76,4 +78,20 @@ fn main() {
         eprint!(".");
         thread::sleep(time::Duration::from_secs(1));
     }
+}
+
+pub fn load_filter(rules: Vec<Rule>, ifindex: i32) -> Result<BPFLink> {
+    let mut f = Filter::new();
+    for r in rules.into_iter() {
+        f.add_rule(r);
+    }
+    Ok(f.load_on(ifindex)?)
+}
+
+pub fn generate_filter(rules: Vec<Rule>) -> Result<()> {
+    let mut f = Filter::new();
+    for r in rules.into_iter() {
+        f.add_rule(r);
+    }
+    f.generate_src().map_err(|e| anyhow!(e))
 }

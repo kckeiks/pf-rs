@@ -3,11 +3,9 @@ use std::vec::IntoIter;
 
 use anyhow::{bail, Result};
 
-use libpf_rs::filter::Filter;
 use libpf_rs::rule::{Builder, Rule};
-use libpf_rs::BPFLink;
 
-use crate::common::*;
+use crate::token::*;
 
 pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,
@@ -93,34 +91,13 @@ impl Parser {
         Ok(())
     }
 
-    pub fn parse_statements(&mut self) -> Result<()> {
+    pub fn parse_statements(mut self) -> Result<Vec<Rule>> {
         loop {
             if self.tokens.peek().is_none() {
                 break;
             }
             self.parse_statement()?;
         }
-        Ok(())
+        Ok(self.rules)
     }
-
-    pub fn get_rules(self) -> Vec<Rule> {
-        self.rules
-    }
-}
-
-pub fn load_filter(rules: Vec<Rule>, ifindex: i32) -> Result<BPFLink> {
-    let mut f = Filter::new();
-    for r in rules.into_iter() {
-        f.add_rule(r);
-    }
-    Ok(f.load_on(ifindex)?)
-}
-
-pub fn generate_filter(rules: Vec<Rule>) -> Result<()> {
-    let mut f = Filter::new();
-    for r in rules.into_iter() {
-        f.add_rule(r);
-    }
-    f.generate_src();
-    Ok(())
 }
