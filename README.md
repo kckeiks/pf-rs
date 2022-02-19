@@ -5,7 +5,7 @@ Warning: This project is currently in development.
 `pf-rs` allows you to easily create and maintain packet filters.
 You can specify the criteria for your filter via filter rules, 
 that use Layer 3 & 4 header information, and `pf-rs` will create 
-an eBPF program and attach it the XDP hook for fast packet filtering.
+an eBPF program and attach it to the XDP hook for fast packet filtering.
 
 The syntax to specify the rules was inspired by OpenBSD's pf.
 
