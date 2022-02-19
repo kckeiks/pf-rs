@@ -5,7 +5,7 @@ use anyhow::{bail, Result};
 
 use libpf_rs::rule::{Builder, Rule};
 
-use crate::token::*;
+use crate::token::Token;
 
 pub struct Parser {
     tokens: Peekable<IntoIter<Token>>,

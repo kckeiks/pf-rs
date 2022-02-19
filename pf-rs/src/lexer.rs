@@ -93,7 +93,7 @@ impl Lexer {
         None
     }
 
-    // this one peeks and does not consume if there is no match unlink iter.map_while
+    // this one peeks and does not consume if there is no match unlike iter.map_while
     fn read_while<P>(&mut self, p: P) -> Option<String>
     where
         P: Fn(char) -> bool,
