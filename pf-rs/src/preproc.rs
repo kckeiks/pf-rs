@@ -15,9 +15,14 @@ pub struct PreProc {
 
 impl PreProc {
     pub fn new(lex: Lexer) -> Self {
+        let mut tokens = lex.collect::<Vec<_>>();
+        // \n separate rules so add a nl at the end if needed
+        if tokens.last().filter(|&t| matches!(t, Token::Nl)).is_none() {
+            tokens.push(Token::Nl);
+        }
         PreProc {
             tokens: Vec::new(),
-            buf: lex.collect::<Vec<_>>().into_iter().peekable(),
+            buf: tokens.into_iter().peekable(),
             idents: HashMap::new(),
         }
     }
