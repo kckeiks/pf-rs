@@ -1,19 +1,20 @@
 libpf-rs
 --------
-[X] generate bpf.c file
-[X] add errors and err handling
 [] remove literals for constants in rule/filter.rs
-[] make Ipv4Rule and Ipv6Rule
 [] add tests for libpf
 [] add support for subnets
 [X] add support for ports
-
+[X] generate bpf.c file
+[X] add errors and err handling
 
 pf-rs
 -----
-[] pf uses libpf
-[] add macro support for pf
-[] add command for pf
-[] improve libpf api
-[] add tests
+[] add support for 'pass/block all'
+[] add tests for preproc
+[] add tests for parser
+[X] add tests for lexer
+[X] pf uses libpf
+[X] add macro support for pf
+[X] add CLI for pf
+
 
