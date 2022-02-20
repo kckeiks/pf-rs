@@ -15,14 +15,9 @@ pub struct PreProc {
 
 impl PreProc {
     pub fn new(lex: Lexer) -> Self {
-        let mut tokens = lex.collect::<Vec<_>>();
-        // \n separate rules so add a nl at the end if needed
-        if tokens.last().filter(|&t| matches!(t, Token::Nl)).is_none() {
-            tokens.push(Token::Nl);
-        }
         PreProc {
             tokens: Vec::new(),
-            buf: tokens.into_iter().peekable(),
+            buf: lex.collect::<Vec<_>>().into_iter().peekable(),
             idents: HashMap::new(),
         }
     }
@@ -113,6 +108,13 @@ impl PreProc {
                 Some(t) => buf.push(t),
                 None => break,
             }
+        }
+
+        // each line ends in a nl so
+        // this covers the case when the last line
+        // does not end in a new line
+        if !buf.is_empty() {
+            self.process_line(buf)?;
         }
 
         Ok(self.tokens)
